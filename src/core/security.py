@@ -9,28 +9,31 @@ from enum import StrEnum
 from typing import Any, cast
 import uuid
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from src.core.config import settings
 
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt limita la contrasena a 72 bytes; los bytes adicionales se ignoran.
+# Truncamos explicitamente para que contrasenas largas no lancen ValueError.
+_BCRYPT_MAX_BYTES = 72
+
+
+def hash_password(plain_password: str) -> str:
+    """Genera el hash bcrypt de una contrasena en texto plano."""
+    secret = plain_password.encode("utf-8")[:_BCRYPT_MAX_BYTES]
+    return bcrypt.hashpw(secret, bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Compara una contrasena en texto plano contra su hash."""
+    secret = plain_password.encode("utf-8")[:_BCRYPT_MAX_BYTES]
+    return bcrypt.checkpw(secret, hashed_password.encode("utf-8"))
 
 
 class TokenType(StrEnum):
     ACCESS = "access"
     REFRESH = "refresh"
-
-
-def hash_password(plain_password: str) -> str:
-    """Genera el hash bcrypt de una contrasena en texto plano."""
-    # passlib carece de stubs; el cast explicito evita el `Any` en modo estricto.
-    return str(_pwd_context.hash(plain_password))
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Compara una contrasena en texto plano contra su hash."""
-    return bool(_pwd_context.verify(plain_password, hashed_password))
 
 
 def _create_token(

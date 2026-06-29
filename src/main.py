@@ -22,6 +22,7 @@ from src.core.exceptions import (
     ValidationError,
 )
 from src.core.logging import configure_logging, get_logger
+from src.modules import models_registry  # noqa: F401 - registra todos los modelos ORM
 
 logger = get_logger(__name__)
 

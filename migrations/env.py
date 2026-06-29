@@ -17,9 +17,8 @@ from sqlalchemy import engine_from_config, pool, text
 from src.core.config import settings
 from src.core.database import Base
 
-# Importar los modelos asegura que esten registrados en Base.metadata.
-from src.modules.auth import models as _auth_models  # noqa: F401
-from src.modules.tenants import models as _tenant_models  # noqa: F401
+# Importar el registro asegura que TODOS los modelos esten en Base.metadata.
+from src.modules import models_registry  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.sync_database_url)
