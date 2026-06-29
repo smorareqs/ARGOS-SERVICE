@@ -20,9 +20,8 @@ from testcontainers.postgres import PostgresContainer
 from src.core.config import settings
 from src.core.database import Base
 
-# Importa los modelos para que Base.metadata los conozca al crear las tablas.
-from src.modules.auth import models as _auth_models  # noqa: F401
-from src.modules.tenants import models as _tenant_models  # noqa: F401
+# Importa el registro para que Base.metadata conozca todos los modelos.
+from src.modules import models_registry  # noqa: F401
 
 
 @pytest.fixture(scope="session")

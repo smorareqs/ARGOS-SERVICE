@@ -6,11 +6,12 @@ capa de servicios de autenticacion.
 
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
-from typing import Any, cast
+from typing import Any
 import uuid
 
 import bcrypt
-from jose import JWTError, jwt
+import jwt
+from jwt import PyJWTError as JWTError
 
 from src.core.config import settings
 
@@ -52,8 +53,7 @@ def _create_token(
     }
     if extra_claims:
         payload.update(extra_claims)
-    # python-jose carece de stubs; cast explicito para el modo estricto de mypy.
-    return str(jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM))
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
 def create_access_token(subject: str, extra_claims: dict[str, Any] | None = None) -> str:
@@ -82,8 +82,7 @@ def create_refresh_token(subject: str, extra_claims: dict[str, Any] | None = Non
 
 def decode_token(token: str) -> dict[str, Any]:
     """Decodifica y valida un JWT. Lanza `JWTError` si es invalido o expiro."""
-    decoded = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
-    return cast("dict[str, Any]", decoded)
+    return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
 
 
 __all__ = [
