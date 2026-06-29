@@ -1,0 +1,54 @@
+# Entorno de desarrollo local: API + PostgreSQL.
+# Las variables sensibles se inyectan por entorno (no hay .env.example).
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: argos-db
+    # Las credenciales se toman del .env (Compose lo lee automaticamente).
+    # La sintaxis ${VAR:?msg} hace fallar el `up` si la variable no esta definida.
+    environment:
+      POSTGRES_USER: ${ARGOS_POSTGRES_USER:?define ARGOS_POSTGRES_USER en .env}
+      POSTGRES_PASSWORD: ${ARGOS_POSTGRES_PASSWORD:?define ARGOS_POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${ARGOS_POSTGRES_DB:?define ARGOS_POSTGRES_DB en .env}
+    ports:
+      # Host 5433 -> contenedor 5432. El 5432 del host lo ocupa un PostgreSQL
+      # nativo de Windows; este mapeo evita el conflicto. Conectarse desde
+      # herramientas externas (DataGrip, psql) usando localhost:5433.
+      - "5433:5432"
+    volumes:
+      - argos_pgdata:/var/lib/postgresql/data
+      - ./docker/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ARGOS_POSTGRES_USER} -d ${ARGOS_POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev
+    container_name: argos-api
+    depends_on:
+      db:
+        condition: service_healthy
+    # Credenciales y secreto desde el .env; sin fallbacks quemados.
+    # Dentro de la red de Docker el host es `db` y el puerto el interno 5432.
+    environment:
+      ARGOS_ENVIRONMENT: local
+      ARGOS_DEBUG: "true"
+      ARGOS_POSTGRES_HOST: db
+      ARGOS_POSTGRES_PORT: "5432"
+      ARGOS_POSTGRES_USER: ${ARGOS_POSTGRES_USER:?define ARGOS_POSTGRES_USER en .env}
+      ARGOS_POSTGRES_PASSWORD: ${ARGOS_POSTGRES_PASSWORD:?define ARGOS_POSTGRES_PASSWORD en .env}
+      ARGOS_POSTGRES_DB: ${ARGOS_POSTGRES_DB:?define ARGOS_POSTGRES_DB en .env}
+      ARGOS_SECRET_KEY: ${ARGOS_SECRET_KEY:?define ARGOS_SECRET_KEY en .env}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src
+      - ./migrations:/app/migrations
+
+volumes:
+  argos_pgdata:

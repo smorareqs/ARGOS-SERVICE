@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+
+# Poetry
+poetry.toml
+
+# Testing / coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Variables de entorno
+# ARCHITECTURE.md prohibe .env.example; los .env locales NO se versionan.
+.env
+.env.*
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Scripts
+scripts/

@@ -1,0 +1,15 @@
+Migraciones de base de datos (Alembic) para ARGOS.
+
+Generar una nueva migracion (autogenerada a partir de los modelos):
+    poetry run alembic revision --autogenerate -m "descripcion del cambio"
+
+Aplicar migraciones:
+    poetry run alembic upgrade head
+
+Revertir la ultima migracion:
+    poetry run alembic downgrade -1
+
+Estrategia multi-tenant: esta migracion base gestiona el schema compartido
+("shared"). El aprovisionamiento del schema de cada tenant lo realiza el
+TenantService al crear el tenant; la replicacion del DDL operativo por-tenant
+se gestiona con scripts en `scripts/`.

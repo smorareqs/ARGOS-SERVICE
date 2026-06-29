@@ -1,0 +1,48 @@
+# Configuracion estricta de Ruff (linter + formatter).
+# ARCHITECTURE.md seccion 2: control de importaciones y complejidad ciclomatica.
+
+target-version = "py313"
+line-length = 100
+src = ["src", "tests"]
+exclude = ["migrations"]
+
+[lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort (control de importaciones)
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "C90",  # mccabe (complejidad ciclomatica)
+    "SIM",  # flake8-simplify
+    "TCH",  # flake8-type-checking
+    "ASYNC",# flake8-async
+    "ANN",  # flake8-annotations (tipado explicito)
+    "RUF",  # reglas propias de ruff
+]
+ignore = [
+    "ANN401", # permitir Any explicito puntual donde sea necesario
+]
+
+[lint.mccabe]
+# Limite estricto de complejidad ciclomatica.
+max-complexity = 8
+
+[lint.isort]
+known-first-party = ["src"]
+combine-as-imports = true
+force-sort-within-sections = true
+
+[lint.per-file-ignores]
+# Los tests pueden tener asserts y fixtures sin anotaciones completas.
+"tests/**/*.py" = ["ANN", "S101"]
+# Los __init__.py reexportan simbolos.
+"**/__init__.py" = ["F401"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"

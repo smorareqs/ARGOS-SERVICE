@@ -1,0 +1,24 @@
+# Dockerfile de desarrollo: incluye dependencias dev y hot-reload.
+
+FROM python:3.13-slim
+
+ENV POETRY_VERSION=1.8.4 \
+    POETRY_VIRTUALENVS_IN_PROJECT=true \
+    POETRY_NO_INTERACTION=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/app/.venv/bin:$PATH"
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir "poetry==${POETRY_VERSION}"
+
+COPY pyproject.toml poetry.lock* ./
+RUN poetry install --no-root
+
+COPY . .
+
+EXPOSE 8000
+
+# `fastapi dev` activa hot-reload automaticamente.
+CMD ["fastapi", "dev", "src/main.py", "--host", "0.0.0.0", "--port", "8000"]

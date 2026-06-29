@@ -1,0 +1,70 @@
+[tool.poetry]
+name = "argos-backend"
+version = "0.1.0"
+description = "ARGOS - Plataforma de gestion de personal para propiedades Airbnb (multi-tenant)"
+authors = ["ARGOS Team"]
+readme = "README.md"
+packages = [{ include = "src" }]
+
+[tool.poetry.dependencies]
+# El ARCHITECTURE.md define Python 3.14. Se admite 3.13+ porque es la version
+# disponible en el entorno actual; subir a 3.14 cuando el toolchain lo permita.
+python = ">=3.13,<3.15"
+# fastapi[standard] incluye el CLI (`fastapi run` / `fastapi dev`) y uvicorn.
+fastapi = { extras = ["standard"], version = "^0.115.0" }
+sqlalchemy = { extras = ["asyncio"], version = "^2.0.36" }
+asyncpg = "^0.30.0"
+# Driver sincrono usado por Alembic (las migraciones corren en modo sync).
+psycopg = { extras = ["binary"], version = "^3.2.0" }
+alembic = "^1.14.0"
+pydantic = { extras = ["email"], version = "^2.10.0" }
+pydantic-settings = "^2.7.0"
+python-jose = { extras = ["cryptography"], version = "^3.3.0" }
+passlib = { extras = ["bcrypt"], version = "^1.7.4" }
+python-multipart = "^0.0.20"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.8.0"
+mypy = "^1.13.0"
+pytest = "^8.3.0"
+pytest-asyncio = "^0.24.0"
+testcontainers = { extras = ["postgres"], version = "^4.9.0" }
+httpx = "^0.28.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+# ---------------------------------------------------------------------------
+# MyPy: modo estricto (sin tipos implicitos) segun ARCHITECTURE.md seccion 2.
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.13"
+strict = true
+plugins = ["pydantic.mypy"]
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_any_generics = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = ["jose.*", "passlib.*", "testcontainers.*"]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-ra -q --strict-markers"
+markers = [
+    "unit: pruebas unitarias con mocks",
+    "integration: pruebas de integracion con BD real (testcontainers)",
+]

@@ -1,0 +1,29 @@
+# Nunca incluir secretos ni .env en la imagen: la config se inyecta por entorno.
+.env
+.env.*
+
+# Control de versiones y metadatos
+.git
+.gitignore
+.github
+
+# Entornos virtuales y caches de Python
+.venv
+venv
+__pycache__
+*.pyc
+.mypy_cache
+.ruff_cache
+.pytest_cache
+
+# Docker / compose (no se necesitan dentro de la imagen)
+docker-compose.yml
+.dockerignore
+
+# IDE / SO
+.idea
+.vscode
+.DS_Store
+
+# Documentacion y tests no requeridos en runtime de produccion
+# (se mantienen tests fuera de la imagen prod; el dev monta el codigo por volumen)
