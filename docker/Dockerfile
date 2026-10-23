@@ -1,40 +1,28 @@
 # Dockerfile de produccion para ARGOS backend.
-# Multi-stage: instala dependencias con Poetry y copia solo lo necesario.
+# Multi-stage: compila un binario estatico y lo copia a una imagen distroless
+# (sin shell ni gestor de paquetes, usuario sin privilegios).
+#
+#   docker run <imagen>                 -> argos serve
+#   docker run <imagen> migrate up      -> migraciones (mismo binario)
 
-FROM python:3.13-slim AS builder
+FROM golang:1.27-alpine AS builder
 
-ENV POETRY_VERSION=1.8.4 \
-    POETRY_VIRTUALENVS_IN_PROJECT=true \
-    POETRY_NO_INTERACTION=1 \
-    PYTHONDONTWRITEBYTECODE=1
+WORKDIR /src
 
-WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
 
-RUN pip install --no-cache-dir "poetry==${POETRY_VERSION}"
-
-COPY pyproject.toml poetry.lock* ./
-# Solo dependencias de runtime (sin grupo dev).
-RUN poetry install --only main --no-root
+COPY . .
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/argos ./cmd/argos
 
 
-FROM python:3.13-slim AS runtime
+FROM gcr.io/distroless/static-debian13:nonroot AS runtime
 
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PATH="/app/.venv/bin:$PATH"
+COPY --from=builder /out/argos /usr/local/bin/argos
 
-WORKDIR /app
-
-# Usuario sin privilegios.
-RUN useradd --create-home --uid 1000 argos
-
-COPY --from=builder /app/.venv /app/.venv
-COPY src ./src
-COPY migrations ./migrations
-COPY alembic.ini pyproject.toml ./
-
-USER argos
+USER nonroot:nonroot
 
 EXPOSE 8000
 
-CMD ["fastapi", "run", "src/main.py", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["argos"]
+CMD ["serve"]

@@ -1,24 +1,17 @@
-# Dockerfile de desarrollo: incluye dependencias dev y hot-reload.
+# Dockerfile de desarrollo: toolchain completo de Go y hot-reload con air.
+# docker-compose monta el codigo en /app, asi que cada cambio recompila.
 
-FROM python:3.13-slim
+FROM golang:1.27
 
-ENV POETRY_VERSION=1.8.4 \
-    POETRY_VIRTUALENVS_IN_PROJECT=true \
-    POETRY_NO_INTERACTION=1 \
-    PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PATH="/app/.venv/bin:$PATH"
+RUN go install github.com/air-verse/air@v1.67.4
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir "poetry==${POETRY_VERSION}"
-
-COPY pyproject.toml poetry.lock* ./
-RUN poetry install --no-root
+COPY go.mod go.sum ./
+RUN go mod download
 
 COPY . .
 
 EXPOSE 8000
 
-# `fastapi dev` activa hot-reload automaticamente.
-CMD ["fastapi", "dev", "src/main.py", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["air", "-c", ".air.toml"]

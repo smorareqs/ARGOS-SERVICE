@@ -1,5 +1,5 @@
 # Workflows de CI/CD para ARGOS backend (ARCHITECTURE.md seccion 1).
-# Jobs: linting/formatting, type-checking, testing.
+# Jobs: lint/formato, pruebas (unitarias + integracion) y build de la imagen.
 
 name: CI
 
@@ -10,40 +10,25 @@ on:
     branches: [main]
 
 jobs:
-  quality:
-    name: Lint & Type Check
+  lint:
+    name: Lint & Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-go@v7
         with:
-          python-version: "3.13"
+          go-version-file: go.mod
 
-      - name: Install Poetry
-        run: pipx install poetry==1.8.4
-
-      - name: Configure Poetry
-        run: poetry config virtualenvs.in-project true
-
-      - name: Cache virtualenv
-        uses: actions/cache@v4
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
+          version: v2.15
 
-      - name: Install dependencies
-        run: poetry install --no-root
-
-      - name: Ruff lint
-        run: poetry run ruff check src tests
-
-      - name: Ruff format check
-        run: poetry run ruff format --check src tests
-
-      - name: MyPy
-        run: poetry run mypy src
+      # `run` no revisa el formato: `fmt --diff` falla si gofumpt/goimports
+      # cambiarian algun archivo.
+      - name: Formato
+        run: docker run --rm -v "$PWD:/src" -w /src golangci/golangci-lint:v2.15.0 golangci-lint fmt --diff
 
   test:
     name: Tests
@@ -51,27 +36,23 @@ jobs:
     # Los runners de GitHub (ubuntu-latest) ya incluyen Docker, asi que
     # Testcontainers levanta el PostgreSQL efimero sin configuracion extra.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-go@v7
         with:
-          python-version: "3.13"
+          go-version-file: go.mod
 
-      - name: Install Poetry
-        run: pipx install poetry==1.8.4
+      - name: go vet
+        run: go vet -tags=integration ./...
 
-      - name: Configure Poetry
-        run: poetry config virtualenvs.in-project true
+      - name: go test
+        run: go test -race -count=1 -tags=integration ./...
 
-      - name: Cache virtualenv
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
+  build:
+    name: Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
 
-      - name: Install dependencies
-        run: poetry install --no-root
-
-      - name: Pytest
-        run: poetry run pytest
+      - name: Build
+        run: docker build -f docker/Dockerfile -t argos-backend:ci .

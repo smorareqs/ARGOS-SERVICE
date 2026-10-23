@@ -1,0 +1,3 @@
+# Finales de linea LF en el arbol de trabajo tambien en Windows: gofmt y los
+# contenedores Linux los esperan.
+* text=auto eol=lf

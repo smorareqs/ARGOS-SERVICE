@@ -1,12 +1,34 @@
-# Entorno de desarrollo local: API + PostgreSQL.
+# Entorno de desarrollo local: PostgreSQL + migraciones + API con hot-reload.
 # Las variables sensibles se inyectan por entorno (no hay .env.example).
+
+# Variables comunes de migrate y api. Credenciales y secreto desde el .env
+# (Compose lo lee automaticamente); ${VAR:?msg} hace fallar el `up` si falta.
+# Dentro de la red de Docker el host es `db` y el puerto el interno 5432.
+x-argos-env: &argos-env
+  ARGOS_ENVIRONMENT: local
+  ARGOS_DEBUG: "true"
+  ARGOS_POSTGRES_HOST: db
+  ARGOS_POSTGRES_PORT: "5432"
+  ARGOS_POSTGRES_USER: ${ARGOS_POSTGRES_USER:?define ARGOS_POSTGRES_USER en .env}
+  ARGOS_POSTGRES_PASSWORD: ${ARGOS_POSTGRES_PASSWORD:?define ARGOS_POSTGRES_PASSWORD en .env}
+  ARGOS_POSTGRES_DB: ${ARGOS_POSTGRES_DB:?define ARGOS_POSTGRES_DB en .env}
+  ARGOS_SECRET_KEY: ${ARGOS_SECRET_KEY:?define ARGOS_SECRET_KEY en .env}
+
+x-argos-dev: &argos-dev
+  build:
+    context: .
+    dockerfile: docker/Dockerfile.dev
+  image: argos-api-dev
+  environment: *argos-env
+  volumes:
+    - .:/app
+    - go_mod_cache:/go/pkg/mod
+    - go_build_cache:/root/.cache/go-build
 
 services:
   db:
     image: postgres:16-alpine
     container_name: argos-db
-    # Las credenciales se toman del .env (Compose lo lee automaticamente).
-    # La sintaxis ${VAR:?msg} hace fallar el `up` si la variable no esta definida.
     environment:
       POSTGRES_USER: ${ARGOS_POSTGRES_USER:?define ARGOS_POSTGRES_USER en .env}
       POSTGRES_PASSWORD: ${ARGOS_POSTGRES_PASSWORD:?define ARGOS_POSTGRES_PASSWORD en .env}
@@ -18,37 +40,33 @@ services:
       - "5433:5432"
     volumes:
       - argos_pgdata:/var/lib/postgresql/data
-      - ./docker/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${ARGOS_POSTGRES_USER} -d ${ARGOS_POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
+  # Aplica las migraciones (shared y todos los tenants) y termina.
+  migrate:
+    <<: *argos-dev
+    container_name: argos-migrate
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["go", "run", "./cmd/argos", "migrate", "up"]
+
   api:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.dev
+    <<: *argos-dev
     container_name: argos-api
     depends_on:
       db:
         condition: service_healthy
-    # Credenciales y secreto desde el .env; sin fallbacks quemados.
-    # Dentro de la red de Docker el host es `db` y el puerto el interno 5432.
-    environment:
-      ARGOS_ENVIRONMENT: local
-      ARGOS_DEBUG: "true"
-      ARGOS_POSTGRES_HOST: db
-      ARGOS_POSTGRES_PORT: "5432"
-      ARGOS_POSTGRES_USER: ${ARGOS_POSTGRES_USER:?define ARGOS_POSTGRES_USER en .env}
-      ARGOS_POSTGRES_PASSWORD: ${ARGOS_POSTGRES_PASSWORD:?define ARGOS_POSTGRES_PASSWORD en .env}
-      ARGOS_POSTGRES_DB: ${ARGOS_POSTGRES_DB:?define ARGOS_POSTGRES_DB en .env}
-      ARGOS_SECRET_KEY: ${ARGOS_SECRET_KEY:?define ARGOS_SECRET_KEY en .env}
+      migrate:
+        condition: service_completed_successfully
     ports:
       - "8000:8000"
-    volumes:
-      - ./src:/app/src
-      - ./migrations:/app/migrations
 
 volumes:
   argos_pgdata:
+  go_mod_cache:
+  go_build_cache:

@@ -5,16 +5,14 @@
 # Control de versiones y metadatos
 .git
 .gitignore
+.gitattributes
 .github
 
-# Entornos virtuales y caches de Python
-.venv
-venv
-__pycache__
-*.pyc
-.mypy_cache
-.ruff_cache
-.pytest_cache
+# Salidas locales (air, binarios, coverage)
+tmp
+bin
+*.exe
+coverage.out
 
 # Docker / compose (no se necesitan dentro de la imagen)
 docker-compose.yml
@@ -24,6 +22,3 @@ docker-compose.yml
 .idea
 .vscode
 .DS_Store
-
-# Documentacion y tests no requeridos en runtime de produccion
-# (se mantienen tests fuera de la imagen prod; el dev monta el codigo por volumen)

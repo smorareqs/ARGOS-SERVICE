@@ -1,0 +1,64 @@
+# Configuracion estricta de golangci-lint (linters + formatters).
+# ARCHITECTURE.md seccion 2: control de importaciones y complejidad ciclomatica.
+version: "2"
+
+run:
+  build-tags:
+    - integration
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - bodyclose
+    - depguard
+    - errorlint
+    - gocritic
+    - gocyclo
+    - gosec
+    - nolintlint
+    - revive
+    - unconvert
+    - unparam
+  settings:
+    gocyclo:
+      # Limite de complejidad ciclomatica (en Python era 8 con mccabe; Go
+      # suma un punto por cada `if err != nil`).
+      min-complexity: 12
+    depguard:
+      rules:
+        # La capa de dominio es agnostica al framework web (ARCHITECTURE.md 3.B).
+        modules-agnostic:
+          files:
+            - "**/internal/modules/**"
+          deny:
+            - pkg: net/http
+              desc: "la capa de dominio no conoce HTTP; devuelva errores de apperr"
+            - pkg: github.com/danielgtaylor/huma
+              desc: "la capa de dominio no conoce el framework web"
+            - pkg: github.com/go-chi
+              desc: "la capa de dominio no conoce el framework web"
+            - pkg: github.com/smorareqs/argos-service/internal/api
+              desc: "el dominio no depende de la capa API"
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+  exclusions:
+    presets:
+      - common-false-positives
+      - std-error-handling
+    rules:
+      # Las pruebas son secuencias largas de comprobaciones lineales.
+      - path: _test\.go
+        linters:
+          - gocyclo
+          - gosec
+          - unparam
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/smorareqs/argos-service
