@@ -129,6 +129,12 @@ ARGOS_SEED_PASSWORD=... go run ./cmd/argos seed demo-tenant
 ```
 
 En Docker Compose el servicio `seed` ejecuta `seed demo-tenant` después de las migraciones.
+
+**Cuenta personal de desarrollo (opcional).** Si el `.env` local define
+`ARGOS_SEED_DEV_EMAIL` y `ARGOS_SEED_DEV_PASSWORD` (y, si quieres, `ARGOS_SEED_DEV_NAME`),
+`seed demo-tenant` crea además esa cuenta como Administrador en todas las empresas de
+demostración. Como vive en el `.env`, cada quien tiene la suya, no se versiona y vuelve a
+crearse aunque se borre la base. Después de cambiarla: `docker compose up --no-deps seed`.
 La pila completa (web + API + base) se levanta desde `WEB/` con `npm run docker:up`, que
 incluye este compose.
 

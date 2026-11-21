@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/smorareqs/argos-service/internal/app"
 	"github.com/smorareqs/argos-service/internal/core/database"
@@ -16,6 +17,14 @@ import (
 // seedPasswordEnv es la contrasena de las cuentas de demo-tenant. Se pasa por
 // entorno para no escribirla en la linea de comandos.
 const seedPasswordEnv = "ARGOS_SEED_PASSWORD" //nolint:gosec // nombre de la variable de entorno, no una credencial
+
+// Cuenta personal opcional de desarrollo (administradora en todas las empresas
+// de demostracion). Se define en el .env local, que no se versiona.
+const (
+	devEmailEnv    = "ARGOS_SEED_DEV_EMAIL"
+	devNameEnv     = "ARGOS_SEED_DEV_NAME"
+	devPasswordEnv = "ARGOS_SEED_DEV_PASSWORD" //nolint:gosec // nombre de la variable de entorno, no una credencial
+)
 
 func seedCmd(ctx context.Context, args []string) error {
 	if len(args) == 0 {
@@ -121,21 +130,54 @@ func seedDemoTenant(ctx context.Context) error {
 		ids[t.slug] = tenant
 	}
 	for _, m := range demoMembers {
-		user, err := ensureUser(ctx, services, m, password)
-		if err != nil {
+		if err := seedMember(ctx, services, db, ids, m, password); err != nil {
 			return err
-		}
-		for slug, role := range m.roles {
-			tenantID := ids[slug].ID
-			if err := db.InTx(ctx, func(q database.Querier) error {
-				return authz.AddMember(ctx, q, user.ID, tenantID, role)
-			}); err != nil {
-				return fmt.Errorf("membresia de %s en %s: %w", m.email, slug, err)
-			}
 		}
 	}
 	fmt.Printf("Empresas de demostracion listas: %d empresas, %d personas.\n", len(demoTenants), len(demoMembers))
+
+	if dev, devPassword, ok := devMember(); ok {
+		if err := seedMember(ctx, services, db, ids, dev, devPassword); err != nil {
+			return err
+		}
+		fmt.Printf("Cuenta de desarrollo lista: %s (administrador en todas las empresas).\n", dev.email)
+	}
 	return nil
+}
+
+// seedMember crea (o actualiza) la persona y sus membresias.
+func seedMember(ctx context.Context, services app.Services, db *database.DB, ids map[string]tenants.Tenant, m demoMember, password string) error {
+	user, err := ensureUser(ctx, services, m, password)
+	if err != nil {
+		return fmt.Errorf("cuenta %s: %w", m.email, err)
+	}
+	for slug, role := range m.roles {
+		tenantID := ids[slug].ID
+		if err := db.InTx(ctx, func(q database.Querier) error {
+			return authz.AddMember(ctx, q, user.ID, tenantID, role)
+		}); err != nil {
+			return fmt.Errorf("membresia de %s en %s: %w", m.email, slug, err)
+		}
+	}
+	return nil
+}
+
+// devMember lee la cuenta personal de desarrollo del entorno. Sin correo o sin
+// contrasena no hay cuenta.
+func devMember() (demoMember, string, bool) {
+	email, password := strings.TrimSpace(os.Getenv(devEmailEnv)), os.Getenv(devPasswordEnv)
+	if email == "" || password == "" {
+		return demoMember{}, "", false
+	}
+	name := strings.TrimSpace(os.Getenv(devNameEnv))
+	if name == "" {
+		name, _, _ = strings.Cut(email, "@")
+	}
+	roles := make(map[string]authz.RoleKey, len(demoTenants))
+	for _, t := range demoTenants {
+		roles[t.slug] = authz.RoleAdmin
+	}
+	return demoMember{email: email, name: name, roles: roles}, password, true
 }
 
 func ensureTenant(ctx context.Context, services app.Services, t demoTenant) (tenants.Tenant, error) {

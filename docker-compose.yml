@@ -75,6 +75,11 @@ services:
     environment:
       <<: *argos-env
       ARGOS_SEED_PASSWORD: ${ARGOS_SEED_PASSWORD:-Argos.2026}
+      # Cuenta personal opcional (administrador en todas las empresas de demo).
+      # Se define en el .env local; si falta el correo o la contrasena, no se crea.
+      ARGOS_SEED_DEV_EMAIL: ${ARGOS_SEED_DEV_EMAIL:-}
+      ARGOS_SEED_DEV_NAME: ${ARGOS_SEED_DEV_NAME:-}
+      ARGOS_SEED_DEV_PASSWORD: ${ARGOS_SEED_DEV_PASSWORD:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
