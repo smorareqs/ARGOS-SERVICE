@@ -38,7 +38,7 @@ func TestUserCreateNormalized(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Email != "ana@example.com" || got.Role != RoleEmployee {
+	if got.Email != "ana@example.com" || got.FullName != "Ana" {
 		t.Errorf("normalizacion inesperada: %+v", got)
 	}
 
@@ -49,7 +49,7 @@ func TestUserCreateNormalized(t *testing.T) {
 		"contrasena corta": {func(u *UserCreate) { u.Password = "1234567" }, ErrInvalidPassword},
 		"contrasena larga": {func(u *UserCreate) { u.Password = strings.Repeat("x", 129) }, ErrInvalidPassword},
 		"nombre vacio":     {func(u *UserCreate) { u.FullName = "" }, ErrInvalidFullName},
-		"rol invalido":     {func(u *UserCreate) { u.Role = "root" }, ErrInvalidRole},
+		"telefono largo":   {func(u *UserCreate) { u.Phone = strings.Repeat("5", 33) }, ErrInvalidPhone},
 		"correo invalido":  {func(u *UserCreate) { u.Email = "no-es-correo" }, ErrInvalidEmail},
 	}
 	for name, c := range cases {
@@ -67,5 +67,23 @@ func TestUserCreateNormalized(t *testing.T) {
 	accents.Password = strings.Repeat("ñ", 128)
 	if _, err := accents.normalized(); err != nil {
 		t.Errorf("128 caracteres multibyte deberian aceptarse: %v", err)
+	}
+}
+
+func TestDeviceNormalized(t *testing.T) {
+	got, err := Device{ID: " dev-1 ", Name: " Chrome ", Platform: PlatformWeb}.normalized()
+	if err != nil || got.ID != "dev-1" || got.Name != "Chrome" {
+		t.Fatalf("normalizacion inesperada: %+v, %v", got, err)
+	}
+	invalid := []Device{
+		{ID: "", Platform: PlatformWeb},
+		{ID: "x", Platform: "desktop"},
+		{ID: strings.Repeat("x", 129), Platform: PlatformIOS},
+		{ID: "x", Name: strings.Repeat("n", 129), Platform: PlatformAndroid},
+	}
+	for _, d := range invalid {
+		if _, err := d.normalized(); !errors.Is(err, ErrInvalidDevice) {
+			t.Errorf("%+v deberia ser invalido", d)
+		}
 	}
 }

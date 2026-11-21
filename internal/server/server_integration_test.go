@@ -9,8 +9,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -20,14 +20,18 @@ import (
 	"github.com/smorareqs/argos-service/internal/core/config"
 	"github.com/smorareqs/argos-service/internal/core/database"
 	"github.com/smorareqs/argos-service/internal/modules/auth"
+	"github.com/smorareqs/argos-service/internal/modules/authz"
+	"github.com/smorareqs/argos-service/internal/modules/tenants"
 	"github.com/smorareqs/argos-service/internal/server"
 	"github.com/smorareqs/argos-service/internal/testutil"
 )
 
 const (
-	adminEmail    = "admin@argos.io"
-	adminPassword = "admin-password"
+	platformEmail = "admin@argos.io"
+	password      = "clave-de-prueba"
 )
+
+var device = map[string]any{"id": "test-device", "name": "Go test", "platform": "web"}
 
 var testDB *database.DB
 
@@ -66,8 +70,8 @@ func setup(t *testing.T) *env {
 		Environment:              config.Testing,
 		SecretKey:                "test-secret",
 		JWTAlgorithm:             "HS256",
-		AccessTokenExpireMinutes: 30,
-		RefreshTokenExpireDays:   7,
+		AccessTokenExpireMinutes: 15,
+		RefreshTokenExpireDays:   60,
 		CORSOrigins:              []string{"*"},
 		DBMaxConns:               10,
 	}
@@ -75,10 +79,9 @@ func setup(t *testing.T) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = svc.Auth.Register(ctx, auth.UserCreate{
-		Email: adminEmail, Password: adminPassword, FullName: "Admin ARGOS", Role: auth.RolePlatformAdmin,
-	})
-	if err != nil {
+	if _, err := svc.Auth.CreateUser(ctx, auth.UserCreate{
+		Email: platformEmail, Password: password, FullName: "Admin ARGOS", IsPlatformAdmin: true,
+	}); err != nil {
 		t.Fatal(err)
 	}
 	srv := httptest.NewServer(server.New(cfg, testutil.Logger, svc))
@@ -86,8 +89,46 @@ func setup(t *testing.T) *env {
 	return &env{t: t, srv: srv, svc: svc}
 }
 
-func (e *env) do(method, path, token, contentType string, body io.Reader) response {
+// tenant crea una empresa (con sus siete roles) y devuelve su id.
+func (e *env) tenant(slug, name string) uuid.UUID {
 	e.t.Helper()
+	t, err := e.svc.Tenants.CreateTenant(context.Background(), tenants.TenantCreate{
+		Name: name, Slug: slug, Features: map[string]bool{"reservations": true},
+	})
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	return t.ID
+}
+
+// member crea una persona con membresia activa en cada empresa indicada.
+func (e *env) member(email string, roles map[uuid.UUID]authz.RoleKey) uuid.UUID {
+	e.t.Helper()
+	ctx := context.Background()
+	user, err := e.svc.Auth.CreateUser(ctx, auth.UserCreate{Email: email, Password: password, FullName: "Persona " + email})
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	for tenantID, role := range roles {
+		if err := testDB.InTx(ctx, func(q database.Querier) error {
+			return authz.AddMember(ctx, q, user.ID, tenantID, role)
+		}); err != nil {
+			e.t.Fatal(err)
+		}
+	}
+	return user.ID
+}
+
+func (e *env) do(method, path, token string, payload any) response {
+	e.t.Helper()
+	var body io.Reader
+	if payload != nil {
+		raw, err := json.Marshal(payload)
+		if err != nil {
+			e.t.Fatal(err)
+		}
+		body = strings.NewReader(string(raw))
+	}
 	req, err := http.NewRequest(method, e.srv.URL+path, body)
 	if err != nil {
 		e.t.Fatal(err)
@@ -95,8 +136,8 @@ func (e *env) do(method, path, token, contentType string, body io.Reader) respon
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
+	if payload != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -119,32 +160,20 @@ func (e *env) do(method, path, token, contentType string, body io.Reader) respon
 	return out
 }
 
-func (e *env) json(method, path, token string, payload any) response {
+func (e *env) login(email, pass string) response {
 	e.t.Helper()
-	var body io.Reader
-	if payload != nil {
-		raw, err := json.Marshal(payload)
-		if err != nil {
-			e.t.Fatal(err)
-		}
-		body = strings.NewReader(string(raw))
-	}
-	return e.do(method, path, token, "application/json", body)
+	return e.do(http.MethodPost, "/api/v1/auth/login", "", map[string]any{"email": email, "password": pass, "device": device})
 }
 
-func (e *env) login(email, password string) response {
-	e.t.Helper()
-	form := url.Values{"username": {email}, "password": {password}, "grant_type": {"password"}}
-	return e.do(http.MethodPost, "/api/v1/auth/login", "", "application/x-www-form-urlencoded", strings.NewReader(form.Encode()))
-}
-
-func (e *env) token(email, password string) string {
+// session inicia sesion de alguien con una sola empresa (o plataforma).
+func (e *env) session(email string) (access, refresh string) {
 	e.t.Helper()
 	res := e.login(email, password)
-	if res.status != http.StatusOK {
-		e.t.Fatalf("login %s: %d %v", email, res.status, res.body)
+	expect(e.t, res, http.StatusOK)
+	if res.body["status"] != "authenticated" {
+		e.t.Fatalf("se esperaba sesion abierta: %v", res.body)
 	}
-	return res.body["access_token"].(string)
+	return res.body["access_token"].(string), res.body["refresh_token"].(string)
 }
 
 func expect(t *testing.T, res response, status int) {
@@ -159,7 +188,7 @@ func expect(t *testing.T, res response, status int) {
 
 func TestHealth(t *testing.T) {
 	e := setup(t)
-	res := e.do(http.MethodGet, "/api/v1/health", "", "", nil)
+	res := e.do(http.MethodGet, "/api/v1/health", "", nil)
 	expect(t, res, http.StatusOK)
 	want := map[string]any{"status": "ok", "environment": "testing", "database": "up"}
 	for k, v := range want {
@@ -169,175 +198,243 @@ func TestHealth(t *testing.T) {
 	}
 }
 
-func TestLoginAndMe(t *testing.T) {
+func TestLoginSingleTenantAndMe(t *testing.T) {
 	e := setup(t)
-	res := e.login(adminEmail, adminPassword)
+	garrent := e.tenant("garrent", "Garrent")
+	e.member("ana@garrent.gt", map[uuid.UUID]authz.RoleKey{garrent: authz.RoleAdmin})
+
+	res := e.login("ANA@garrent.gt", password)
 	expect(t, res, http.StatusOK)
-	if res.body["token_type"] != "bearer" || res.body["access_token"] == "" || res.body["refresh_token"] == "" {
-		t.Fatalf("respuesta de login inesperada: %v", res.body)
+	if res.body["status"] != "authenticated" || res.body["expires_in"] != float64(900) {
+		t.Fatalf("sesion inesperada: %v", res.body)
+	}
+	memberships := res.body["memberships"].([]any)
+	if len(memberships) != 1 || memberships[0].(map[string]any)["role_key"] != "admin" {
+		t.Errorf("membresias inesperadas: %v", memberships)
 	}
 
-	me := e.do(http.MethodGet, "/api/v1/auth/me", res.body["access_token"].(string), "", nil)
+	me := e.do(http.MethodGet, "/api/v1/auth/me", res.body["access_token"].(string), nil)
 	expect(t, me, http.StatusOK)
-	if me.body["email"] != adminEmail || me.body["role"] != "platform_admin" || me.body["tenant_id"] != nil {
-		t.Errorf("perfil inesperado: %v", me.body)
+	tenant := me.body["tenant"].(map[string]any)
+	if tenant["name"] != "Garrent" || tenant["timezone"] != "America/Guatemala" || tenant["currency"] != "GTQ" {
+		t.Errorf("tenant inesperado: %v", tenant)
 	}
-	if _, ok := me.body["tenant_id"]; !ok {
-		t.Error("tenant_id debe estar presente aunque sea null")
+	features := tenant["features"].(map[string]any)
+	if features["reservations"] != true || features["parking"] != false {
+		t.Errorf("banderas inesperadas: %v", features)
 	}
-	if _, ok := me.body["hashed_password"]; ok {
-		t.Error("nunca se expone el hash")
+	if me.body["role"].(map[string]any)["key"] != "admin" {
+		t.Errorf("rol inesperado: %v", me.body["role"])
+	}
+	perms := me.body["permissions"].([]any)
+	if !slices.Contains(perms, any("users.manage")) || slices.Contains(perms, any("hr.disciplinary.own")) {
+		t.Errorf("permisos del admin inesperados: %v", perms)
 	}
 }
 
 func TestLoginErrors(t *testing.T) {
 	e := setup(t)
+	e.member("sin.empresa@garrent.gt", nil)
 
-	res := e.login(adminEmail, "incorrecta")
-	expect(t, res, http.StatusUnauthorized)
-	if res.body["detail"] != "Correo o contrasena incorrectos." {
-		t.Errorf("detail = %v", res.body["detail"])
-	}
-	expect(t, e.login("nadie@argos.io", adminPassword), http.StatusUnauthorized)
-
-	missing := url.Values{"username": {adminEmail}}
-	res = e.do(http.MethodPost, "/api/v1/auth/login", "", "application/x-www-form-urlencoded", strings.NewReader(missing.Encode()))
-	expect(t, res, http.StatusUnprocessableEntity)
+	expect(t, e.login(platformEmail, "incorrecta"), http.StatusUnauthorized)
+	expect(t, e.login("nadie@garrent.gt", password), http.StatusUnauthorized)
+	expect(t, e.login("sin.empresa@garrent.gt", password), http.StatusForbidden)
+	bad := e.do(http.MethodPost, "/api/v1/auth/login", "", map[string]any{
+		"email": platformEmail, "password": password, "device": map[string]any{"id": "x", "platform": "desktop"},
+	})
+	expect(t, bad, http.StatusUnprocessableEntity)
 }
 
-func TestMeRequiresValidAccessToken(t *testing.T) {
+func TestLockoutAfterTenFailures(t *testing.T) {
 	e := setup(t)
-
-	res := e.do(http.MethodGet, "/api/v1/auth/me", "", "", nil)
-	expect(t, res, http.StatusUnauthorized)
-	if res.header.Get("WWW-Authenticate") != "Bearer" {
-		t.Errorf("falta WWW-Authenticate: %v", res.header)
+	for range 10 {
+		expect(t, e.login(platformEmail, "incorrecta"), http.StatusUnauthorized)
 	}
-	expect(t, e.do(http.MethodGet, "/api/v1/auth/me", "basura", "", nil), http.StatusUnauthorized)
-
-	// Un refresh token no sirve como token de acceso.
-	refresh := e.login(adminEmail, adminPassword).body["refresh_token"].(string)
-	expect(t, e.do(http.MethodGet, "/api/v1/auth/me", refresh, "", nil), http.StatusUnauthorized)
+	res := e.login(platformEmail, password)
+	expect(t, res, http.StatusTooManyRequests)
+	if res.header.Get("Retry-After") == "" {
+		t.Errorf("un 429 debe indicar Retry-After: %v", res.header)
+	}
 }
 
-func TestRegister(t *testing.T) {
+// fase01.md §3.10 caso 8.
+func TestSelectTenantAndSwitch(t *testing.T) {
 	e := setup(t)
-	admin := e.token(adminEmail, adminPassword)
-	tenant := e.json(http.MethodPost, "/api/v1/tenants", admin, map[string]any{"name": "Acme", "slug": "acme"})
-	expect(t, tenant, http.StatusCreated)
-	tenantID := tenant.body["id"].(string)
+	garrent := e.tenant("garrent", "Garrent")
+	costa := e.tenant("costa_limpia", "Costa Limpia")
+	otra := e.tenant("otra", "Otra")
+	e.member("carlos@argos.gt", map[uuid.UUID]authz.RoleKey{garrent: authz.RoleSupervisor, costa: authz.RoleAdmin})
 
-	employee := map[string]any{
-		"email": "ana@acme.gt", "password": "12345678", "full_name": "Ana", "tenant_id": tenantID,
+	res := e.login("carlos@argos.gt", password)
+	expect(t, res, http.StatusOK)
+	if res.body["status"] != "select_tenant" || res.body["access_token"] != nil || len(res.body["memberships"].([]any)) != 2 {
+		t.Fatalf("se esperaba elegir empresa: %v", res.body)
+	}
+	selection := res.body["selection_token"].(string)
+
+	expect(t, e.do(http.MethodPost, "/api/v1/auth/select-tenant", "", map[string]any{
+		"tenant_id": otra, "selection_token": selection, "device": device,
+	}), http.StatusNotFound)
+
+	chosen := e.do(http.MethodPost, "/api/v1/auth/select-tenant", "", map[string]any{
+		"tenant_id": garrent, "selection_token": selection, "device": device,
+	})
+	expect(t, chosen, http.StatusOK)
+	me := e.do(http.MethodGet, "/api/v1/auth/me", chosen.body["access_token"].(string), nil)
+	if me.body["tenant"].(map[string]any)["name"] != "Garrent" || me.body["role"].(map[string]any)["key"] != "supervisor" {
+		t.Fatalf("primera empresa inesperada: %v", me.body)
 	}
 
-	// Registrar exige platform_admin.
-	expect(t, e.json(http.MethodPost, "/api/v1/auth/register", "", employee), http.StatusUnauthorized)
-
-	res := e.json(http.MethodPost, "/api/v1/auth/register", admin, employee)
-	expect(t, res, http.StatusCreated)
-	if res.body["role"] != "employee" || res.body["tenant_id"] != tenantID || res.body["is_owner"] != false || res.body["is_active"] != true {
-		t.Errorf("usuario inesperado: %v", res.body)
+	switched := e.do(http.MethodPost, "/api/v1/auth/select-tenant", "", map[string]any{
+		"tenant_id": costa, "refresh_token": chosen.body["refresh_token"],
+	})
+	expect(t, switched, http.StatusOK)
+	me = e.do(http.MethodGet, "/api/v1/auth/me", switched.body["access_token"].(string), nil)
+	if me.body["tenant"].(map[string]any)["name"] != "Costa Limpia" || me.body["role"].(map[string]any)["key"] != "admin" {
+		t.Errorf("segunda empresa inesperada: %v", me.body)
 	}
+	// El refresh anterior quedo rotado.
+	expect(t, e.do(http.MethodPost, "/api/v1/auth/refresh", "", map[string]any{
+		"refresh_token": chosen.body["refresh_token"], "device_id": "test-device",
+	}), http.StatusUnauthorized)
+}
 
-	// El empleado inicia sesion; su peticion se resuelve en el schema del tenant.
-	employeeToken := e.token("ana@acme.gt", "12345678")
-	me := e.do(http.MethodGet, "/api/v1/auth/me", employeeToken, "", nil)
-	expect(t, me, http.StatusOK)
-	if me.body["tenant_id"] != tenantID {
-		t.Errorf("tenant del empleado = %v", me.body["tenant_id"])
+// fase01.md §3.10 caso 4.
+func TestRefreshRotationAndReuse(t *testing.T) {
+	e := setup(t)
+	garrent := e.tenant("garrent", "Garrent")
+	e.member("ana@garrent.gt", map[uuid.UUID]authz.RoleKey{garrent: authz.RoleAdmin})
+	_, first := e.session("ana@garrent.gt")
+
+	rotated := e.do(http.MethodPost, "/api/v1/auth/refresh", "", map[string]any{"refresh_token": first, "device_id": "test-device"})
+	expect(t, rotated, http.StatusOK)
+	second := rotated.body["refresh_token"].(string)
+	if second == first {
+		t.Fatal("el refresh debe rotar")
 	}
-	expect(t, e.json(http.MethodPost, "/api/v1/auth/register", employeeToken, employee), http.StatusForbidden)
+	expect(t, e.do(http.MethodGet, "/api/v1/auth/me", rotated.body["access_token"].(string), nil), http.StatusOK)
 
-	expect(t, e.json(http.MethodPost, "/api/v1/auth/register", admin, employee), http.StatusConflict)
+	expect(t, e.do(http.MethodPost, "/api/v1/auth/refresh", "", map[string]any{"refresh_token": second, "device_id": "otro"}), http.StatusUnauthorized)
+	// Reutilizar el primero revoca toda la sesion, tambien el segundo.
+	expect(t, e.do(http.MethodPost, "/api/v1/auth/refresh", "", map[string]any{"refresh_token": first, "device_id": "test-device"}), http.StatusUnauthorized)
+	expect(t, e.do(http.MethodPost, "/api/v1/auth/refresh", "", map[string]any{"refresh_token": second, "device_id": "test-device"}), http.StatusUnauthorized)
+}
 
-	unknownTenant := map[string]any{"email": "luis@acme.gt", "password": "12345678", "full_name": "Luis", "tenant_id": uuid.NewString()}
-	expect(t, e.json(http.MethodPost, "/api/v1/auth/register", admin, unknownTenant), http.StatusUnprocessableEntity)
+func TestLogout(t *testing.T) {
+	e := setup(t)
+	_, refresh := e.session(platformEmail)
+	expect(t, e.do(http.MethodPost, "/api/v1/auth/logout", "", map[string]any{"refresh_token": refresh}), http.StatusNoContent)
+	expect(t, e.do(http.MethodPost, "/api/v1/auth/logout", "", map[string]any{"refresh_token": refresh}), http.StatusNoContent)
+	expect(t, e.do(http.MethodPost, "/api/v1/auth/refresh", "", map[string]any{"refresh_token": refresh, "device_id": "test-device"}), http.StatusUnauthorized)
+}
 
-	for name, body := range map[string]map[string]any{
-		"contrasena corta": {"email": "x@acme.gt", "password": "123", "full_name": "X"},
-		"correo invalido":  {"email": "no-es-correo", "password": "12345678", "full_name": "X"},
-		"rol invalido":     {"email": "x@acme.gt", "password": "12345678", "full_name": "X", "role": "root"},
-		"campo extra":      {"email": "x@acme.gt", "password": "12345678", "full_name": "X", "tenantId": tenantID},
-	} {
+func TestForgotPasswordAlwaysAccepted(t *testing.T) {
+	e := setup(t)
+	expect(t, e.do(http.MethodPost, "/api/v1/auth/password/forgot", "", map[string]any{"email": "nadie@garrent.gt"}), http.StatusAccepted)
+}
+
+// fase01.md §3.10 casos 3 y 9.
+func TestAccessTokenStopsWorking(t *testing.T) {
+	ctx := context.Background()
+	cases := map[string]string{
+		"membresia suspendida": `UPDATE shared.memberships SET status = 'suspended'`,
+		"tenant inactivo":      `UPDATE shared.tenants SET is_active = false`,
+		"usuario inactivo":     `UPDATE shared.users SET is_active = false WHERE NOT is_platform_admin`,
+		"permisos del rol":     `UPDATE shared.roles SET permissions_version = permissions_version + 1`,
+	}
+	for name, sql := range cases {
 		t.Run(name, func(t *testing.T) {
-			expect(t, e.json(http.MethodPost, "/api/v1/auth/register", admin, body), http.StatusUnprocessableEntity)
+			e := setup(t)
+			garrent := e.tenant("garrent", "Garrent")
+			e.member("ana@garrent.gt", map[uuid.UUID]authz.RoleKey{garrent: authz.RoleAdmin})
+			access, _ := e.session("ana@garrent.gt")
+			expect(t, e.do(http.MethodGet, "/api/v1/auth/me", access, nil), http.StatusOK)
+			if _, err := testDB.Pool().Exec(ctx, sql); err != nil {
+				t.Fatal(err)
+			}
+			expect(t, e.do(http.MethodGet, "/api/v1/auth/me", access, nil), http.StatusUnauthorized)
 		})
 	}
 }
 
-func TestTenantsEndpoints(t *testing.T) {
+func TestMeRequiresValidAccessToken(t *testing.T) {
 	e := setup(t)
-	admin := e.token(adminEmail, adminPassword)
+	expect(t, e.do(http.MethodGet, "/api/v1/auth/me", "", nil), http.StatusUnauthorized)
+	expect(t, e.do(http.MethodGet, "/api/v1/auth/me", "no-es-jwt", nil), http.StatusUnauthorized)
+	_, refresh := e.session(platformEmail)
+	// Un refresh token (opaco) no sirve como access token.
+	res := e.do(http.MethodGet, "/api/v1/auth/me", refresh, nil)
+	expect(t, res, http.StatusUnauthorized)
+	if res.header.Get("WWW-Authenticate") != "Bearer" {
+		t.Errorf("falta WWW-Authenticate: %v", res.header)
+	}
+}
 
-	expect(t, e.json(http.MethodGet, "/api/v1/tenants", "", nil), http.StatusUnauthorized)
+func TestPlatformTenants(t *testing.T) {
+	e := setup(t)
+	admin, _ := e.session(platformEmail)
 
-	empty := e.json(http.MethodGet, "/api/v1/tenants", admin, nil)
+	me := e.do(http.MethodGet, "/api/v1/auth/me", admin, nil)
+	expect(t, me, http.StatusOK)
+	if me.body["tenant"] != nil || me.body["user"].(map[string]any)["is_platform_admin"] != true {
+		t.Errorf("modo plataforma inesperado: %v", me.body)
+	}
+
+	expect(t, e.do(http.MethodGet, "/api/v1/platform/tenants", "", nil), http.StatusUnauthorized)
+	empty := e.do(http.MethodGet, "/api/v1/platform/tenants", admin, nil)
 	expect(t, empty, http.StatusOK)
 	if empty.list == nil || len(empty.list) != 0 {
 		t.Errorf("la lista vacia debe ser []: %v", empty.list)
 	}
 
-	created := e.json(http.MethodPost, "/api/v1/tenants", admin, map[string]any{"name": "Garrent", "slug": " Garrent "})
+	created := e.do(http.MethodPost, "/api/v1/platform/tenants", admin, map[string]any{"name": "Garrent", "slug": " Garrent "})
 	expect(t, created, http.StatusCreated)
 	if created.body["slug"] != "garrent" || created.body["schema_name"] != "tenant_garrent" || created.body["is_active"] != true {
 		t.Errorf("tenant inesperado: %v", created.body)
 	}
 	id := created.body["id"].(string)
-
-	list := e.json(http.MethodGet, "/api/v1/tenants?limit=10&offset=0", admin, nil)
-	expect(t, list, http.StatusOK)
-	if len(list.list) != 1 {
-		t.Errorf("se esperaba 1 tenant: %v", list.list)
+	var roles int
+	if err := testDB.Pool().QueryRow(context.Background(),
+		`SELECT count(*) FROM shared.roles WHERE tenant_id = $1 AND is_system`, id).Scan(&roles); err != nil || roles != 7 {
+		t.Errorf("el alta debe sembrar 7 roles: %d %v", roles, err)
 	}
 
-	got := e.json(http.MethodGet, "/api/v1/tenants/"+id, admin, nil)
-	expect(t, got, http.StatusOK)
-	if got.body["id"] != id {
-		t.Errorf("tenant obtenido = %v", got.body)
-	}
+	expect(t, e.do(http.MethodGet, "/api/v1/platform/tenants/"+id, admin, nil), http.StatusOK)
+	expect(t, e.do(http.MethodGet, "/api/v1/platform/tenants/"+uuid.NewString(), admin, nil), http.StatusNotFound)
+	expect(t, e.do(http.MethodGet, "/api/v1/platform/tenants?limit=-1", admin, nil), http.StatusUnprocessableEntity)
+	expect(t, e.do(http.MethodPost, "/api/v1/platform/tenants", admin, map[string]any{"name": "Otro", "slug": "garrent"}), http.StatusConflict)
+	expect(t, e.do(http.MethodPost, "/api/v1/platform/tenants", admin, map[string]any{"name": "Malo", "slug": "mal-slug"}), http.StatusUnprocessableEntity)
 
-	expect(t, e.json(http.MethodGet, "/api/v1/tenants/"+uuid.NewString(), admin, nil), http.StatusNotFound)
-	expect(t, e.json(http.MethodGet, "/api/v1/tenants/no-es-uuid", admin, nil), http.StatusUnprocessableEntity)
-	expect(t, e.json(http.MethodGet, "/api/v1/tenants?limit=-1", admin, nil), http.StatusUnprocessableEntity)
-	expect(t, e.json(http.MethodPost, "/api/v1/tenants", admin, map[string]any{"name": "Otro", "slug": "garrent"}), http.StatusConflict)
-	expect(t, e.json(http.MethodPost, "/api/v1/tenants", admin, map[string]any{"name": "Malo", "slug": "mal-slug"}), http.StatusUnprocessableEntity)
-
-	// Un usuario de tenant no administra tenants.
-	expect(t, e.json(http.MethodPost, "/api/v1/auth/register", admin, map[string]any{
-		"email": "jefe@garrent.gt", "password": "12345678", "full_name": "Jefe", "role": "admin", "tenant_id": id,
-	}), http.StatusCreated)
-	tenantAdmin := e.token("jefe@garrent.gt", "12345678")
-	expect(t, e.json(http.MethodGet, "/api/v1/tenants", tenantAdmin, nil), http.StatusForbidden)
-	expect(t, e.json(http.MethodGet, "/api/v1/tenants/"+id, tenantAdmin, nil), http.StatusForbidden)
+	// El administrador de una empresa no administra la plataforma.
+	e.member("jefe@garrent.gt", map[uuid.UUID]authz.RoleKey{uuid.MustParse(id): authz.RoleAdmin})
+	tenantAdmin, _ := e.session("jefe@garrent.gt")
+	expect(t, e.do(http.MethodGet, "/api/v1/platform/tenants", tenantAdmin, nil), http.StatusForbidden)
 }
 
 func TestOpenAPIAndDocs(t *testing.T) {
 	e := setup(t)
-	spec := e.do(http.MethodGet, "/api/v1/openapi.json", "", "", nil)
+	spec := e.do(http.MethodGet, "/api/v1/openapi.json", "", nil)
 	if spec.status != http.StatusOK {
 		t.Fatalf("openapi.json: %d", spec.status)
 	}
 	paths, _ := spec.body["paths"].(map[string]any)
-	for _, p := range []string{"/api/v1/health", "/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/me", "/api/v1/tenants", "/api/v1/tenants/{tenant_id}"} {
+	for _, p := range []string{
+		"/api/v1/health", "/api/v1/auth/login", "/api/v1/auth/select-tenant", "/api/v1/auth/refresh",
+		"/api/v1/auth/logout", "/api/v1/auth/me", "/api/v1/auth/password/forgot",
+		"/api/v1/platform/tenants", "/api/v1/platform/tenants/{tenant_id}",
+	} {
 		if _, ok := paths[p]; !ok {
 			t.Errorf("falta %s en el OpenAPI", p)
 		}
 	}
-	login, _ := paths["/api/v1/auth/login"].(map[string]any)["post"].(map[string]any)
-	content, _ := login["requestBody"].(map[string]any)["content"].(map[string]any)
-	if _, ok := content["application/x-www-form-urlencoded"]; !ok {
-		t.Errorf("el login debe documentarse como formulario: %v", content)
-	}
-
-	if docs := e.do(http.MethodGet, "/docs", "", "", nil); docs.status != http.StatusOK {
+	if docs := e.do(http.MethodGet, "/docs", "", nil); docs.status != http.StatusOK {
 		t.Errorf("/docs: %d", docs.status)
 	}
 }
 
 func TestCORSPreflight(t *testing.T) {
 	e := setup(t)
-	req, err := http.NewRequest(http.MethodOptions, e.srv.URL+"/api/v1/tenants", nil)
+	req, err := http.NewRequest(http.MethodOptions, e.srv.URL+"/api/v1/auth/login", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

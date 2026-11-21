@@ -66,7 +66,26 @@ services:
     ports:
       - "8000:8000"
 
+  # Empresas y cuentas de demostracion (argos seed demo-tenant). Idempotente:
+  # en cada `up` deja las cuentas con la contrasena de ARGOS_SEED_PASSWORD.
+  # Solo desarrollo: el comando se niega a correr con ARGOS_ENVIRONMENT=production.
+  seed:
+    <<: *argos-dev
+    container_name: argos-seed
+    environment:
+      <<: *argos-env
+      ARGOS_SEED_PASSWORD: ${ARGOS_SEED_PASSWORD:-Argos.2026}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command: ["go", "run", "./cmd/argos", "seed", "demo-tenant"]
+
+# Nombres fijos: los mismos volumenes se usan al levantar este compose solo o
+# incluido desde WEB/docker-compose.yml (pila completa).
 volumes:
   argos_pgdata:
+    name: backend_argos_pgdata
   go_mod_cache:
+    name: argos_go_mod_cache
   go_build_cache:
+    name: argos_go_build_cache

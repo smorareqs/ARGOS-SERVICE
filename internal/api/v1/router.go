@@ -17,7 +17,7 @@ const Prefix = "/api/v1"
 // Archivo compartido: cada modulo nuevo agrega una sola linea register<Modulo>;
 // nunca se reordena.
 func Register(humaAPI huma.API, svc app.Services) {
-	guard := api.NewGuard(humaAPI, svc.Auth, svc.Tenants)
+	guard := api.NewGuard(humaAPI, svc.Auth)
 	v1 := huma.NewGroup(humaAPI, Prefix)
 
 	registerHealth(v1, svc.Health)

@@ -117,11 +117,20 @@ se niega a arrancar si `shared` tiene migraciones pendientes.
 > índices y constraints. La tabla `shared.alembic_version` queda huérfana y se puede
 > borrar.
 
-### Crear el primer platform_admin
+### Datos iniciales
 
 ```bash
+# Administrador de la plataforma ARGOS (sin empresa):
 go run ./cmd/argos seed platform-admin admin@argos.io "TuPassword" "Admin ARGOS"
+# Empresas de demostración (Garrent y Costa Limpia) con una persona por rol.
+# Idempotente; la contraseña de todas las cuentas sale de ARGOS_SEED_PASSWORD.
+# Se niega a correr con ARGOS_ENVIRONMENT=production.
+ARGOS_SEED_PASSWORD=... go run ./cmd/argos seed demo-tenant
 ```
+
+En Docker Compose el servicio `seed` ejecuta `seed demo-tenant` después de las migraciones.
+La pila completa (web + API + base) se levanta desde `WEB/` con `npm run docker:up`, que
+incluye este compose.
 
 ### Imagen de producción
 
@@ -144,15 +153,26 @@ go test -tags=integration -p 1 ./...          # + integración (levanta PostgreS
 
 ## Endpoints iniciales
 
-| Método | Ruta                     | Descripción                       |
-| ------ | ------------------------ | --------------------------------- |
-| GET    | `/api/v1/health`         | Estado del servicio y la BD       |
-| POST   | `/api/v1/auth/login`     | Login (OAuth2 password flow, formulario) |
-| POST   | `/api/v1/auth/register`  | Registro de usuario (platform_admin) |
-| GET    | `/api/v1/auth/me`        | Perfil del usuario autenticado    |
-| POST   | `/api/v1/tenants`        | Crear tenant (platform_admin)     |
-| GET    | `/api/v1/tenants`        | Listar tenants (platform_admin)   |
-| GET    | `/api/v1/tenants/{id}`   | Obtener tenant (platform_admin)   |
+Contrato de autenticación: `APP/docs/plans/fase01.md` §3.7.1.
+
+| Método | Ruta | Descripción |
+| ------ | ---- | ----------- |
+| GET    | `/api/v1/health` | Estado del servicio y la BD |
+| POST   | `/api/v1/auth/login` | Correo, contraseña y dispositivo. Una empresa: tokens. Varias: `select_tenant` + `selection_token` (5 min). 403 sin membresías, 428 falta TOTP, 429 + `Retry-After` tras 10 fallos en 15 min (correo + IP) |
+| POST   | `/api/v1/auth/select-tenant` | Elegir empresa tras el login (`selection_token` + `device`) o cambiarla con sesión abierta (`refresh_token`) |
+| POST   | `/api/v1/auth/refresh` | Rota el refresh token (opaco, se guarda su SHA-256). Reutilizar uno ya rotado revoca la sesión entera |
+| POST   | `/api/v1/auth/logout` | Revoca la sesión (204 siempre) |
+| POST   | `/api/v1/auth/password/forgot` | 202 siempre (el envío del correo llega con la cola de trabajos) |
+| GET    | `/api/v1/auth/me` | Usuario, empresa activa, rol, permisos y banderas; `tenant` null en modo plataforma |
+| POST   | `/api/v1/platform/tenants` | Crear tenant con sus 7 roles de sistema (platform admin) |
+| GET    | `/api/v1/platform/tenants` | Listar tenants (platform admin) |
+| GET    | `/api/v1/platform/tenants/{id}` | Obtener tenant (platform admin) |
+
+El access token (15 min) lleva `tid` (empresa), `sid` (sesión) y `pv` (versión de permisos
+del rol): deja de valer si cambian los permisos del rol, si se suspende la membresía o si se
+desactiva el usuario o la empresa. Pendientes de fase 1: alta y verificación de TOTP,
+invitaciones, sesiones (`/auth/sessions`), cambio y restablecimiento de contraseña, S3 y cola
+de correo.
 
 Contrato completo: `/api/v1/openapi.json` (o `.yaml`), generado desde el código.
 

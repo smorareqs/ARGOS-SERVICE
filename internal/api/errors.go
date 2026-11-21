@@ -6,7 +6,9 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"math"
 	"net/http"
+	"strconv"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -22,6 +24,9 @@ var kindStatus = map[apperr.Kind]int{
 	apperr.KindValidation:       http.StatusUnprocessableEntity,
 	apperr.KindAuthentication:   http.StatusUnauthorized,
 	apperr.KindPermissionDenied: http.StatusForbidden,
+
+	apperr.KindPreconditionRequired: http.StatusPreconditionRequired,
+	apperr.KindTooManyRequests:      http.StatusTooManyRequests,
 }
 
 // HTTPError traduce un error devuelto por un servicio a un error HTTP.
@@ -31,8 +36,28 @@ var kindStatus = map[apperr.Kind]int{
 // detalles internos (SQL, rutas, etc.).
 func HTTPError(ctx context.Context, err error) huma.StatusError {
 	status, message := classify(ctx, err)
-	return huma.NewError(status, message)
+	statusErr := huma.NewError(status, message)
+	var domainErr *apperr.Error
+	if errors.As(err, &domainErr) && domainErr.RetryAfter > 0 {
+		seconds := int(math.Ceil(domainErr.RetryAfter.Seconds()))
+		return &errorWithHeaders{
+			StatusError: statusErr,
+			headers:     http.Header{"Retry-After": []string{strconv.Itoa(seconds)}},
+		}
+	}
+	return statusErr
 }
+
+// errorWithHeaders agrega cabeceras a la respuesta de error (huma las escribe
+// cuando el error implementa GetHeaders), p. ej. Retry-After en un 429.
+type errorWithHeaders struct {
+	huma.StatusError
+	headers http.Header
+}
+
+func (e *errorWithHeaders) GetHeaders() http.Header { return e.headers }
+
+func (e *errorWithHeaders) Unwrap() error { return e.StatusError }
 
 func classify(ctx context.Context, err error) (int, string) {
 	var domainErr *apperr.Error

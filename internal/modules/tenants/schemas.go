@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/smorareqs/argos-service/internal/modules/authz"
 )
 
 const (
@@ -21,8 +23,18 @@ var slugPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_]*[a-z0-9]$`)
 
 // TenantCreate son los datos para crear un tenant.
 type TenantCreate struct {
-	Name string `json:"name" minLength:"1" maxLength:"255"`
-	Slug string `json:"slug" minLength:"2" maxLength:"63" doc:"Minusculas, numeros y guiones bajos (2 a 56 caracteres). Se normaliza a minusculas y sin espacios."`
+	Name     string          `json:"name" minLength:"1" maxLength:"255"`
+	Slug     string          `json:"slug" minLength:"2" maxLength:"63" doc:"Minusculas, numeros y guiones bajos (2 a 56 caracteres). Se normaliza a minusculas y sin espacios."`
+	Features map[string]bool `json:"features,omitempty" doc:"Banderas: reservations, parking, shared_areas, guest_chat, payroll, smart_locks."`
+}
+
+// normalizedFeatures conserva solo las banderas conocidas, todas presentes.
+func normalizedFeatures(in map[string]bool) map[string]bool {
+	out := make(map[string]bool, len(authz.Features))
+	for _, f := range authz.Features {
+		out[string(f)] = in[string(f)]
+	}
+	return out
 }
 
 // NormalizeSlug pasa el slug a minusculas, quita espacios y valida su forma.
@@ -41,8 +53,12 @@ type TenantRead struct {
 	ID         uuid.UUID `json:"id" format:"uuid"`
 	SchemaName string    `json:"schema_name"`
 	IsActive   bool      `json:"is_active"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	Timezone   string    `json:"timezone"`
+	Currency   string    `json:"currency"`
+	// Features son las banderas de funcionalidad del tenant.
+	Features  map[string]bool `json:"features"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
 }
 
 // NewTenantRead construye la representacion publica de t.
@@ -53,6 +69,9 @@ func NewTenantRead(t Tenant) TenantRead {
 		ID:         t.ID,
 		SchemaName: t.SchemaName,
 		IsActive:   t.IsActive,
+		Timezone:   t.Timezone,
+		Currency:   strings.TrimSpace(t.Currency),
+		Features:   normalizedFeatures(t.Features),
 		CreatedAt:  t.CreatedAt.UTC(),
 		UpdatedAt:  t.UpdatedAt.UTC(),
 	}

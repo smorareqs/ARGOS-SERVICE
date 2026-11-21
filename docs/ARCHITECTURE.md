@@ -107,3 +107,17 @@ El ciclo de vida de una solicitud HTTP debe ser siempre unidireccional y predeci
 6. **Persistencia (Repo):** El Repository ejecuta la operación en la base de datos y retorna la entidad resultante al Service.
 7. **Transformación Final:** El Service confirma la transacción y retorna la entidad en un formato útil para la capa de negocio.
 8. **Salida:** El Endpoint convierte la entidad al Schema de respuesta y emite el código de estado HTTP adecuado; los errores de dominio se traducen con `api.HTTPError`.
+
+## Autorización (fase01.md §3.6)
+
+* El middleware `Guard.Authenticated` resuelve el `auth.Principal` (usuario, membresía de la
+  empresa activa, rol y permisos) y marca el contexto con el schema del tenant.
+* Todo endpoint bajo `/api/v1` excepto `auth/*`, `health` y `public/*` declara
+  `Middlewares: guard.RequirePermission(...)` (o su grupo lo aplica con `UseMiddleware`).
+  La administración de la plataforma usa `guard.RequirePlatformAdmin()`.
+* El catálogo de permisos y la matriz de los siete roles de sistema viven solo en
+  `internal/modules/authz` (`permissions.go`, `default_roles.go`). `argos migrate up` los
+  sincroniza con todos los tenants después de migrar; nunca se escriben en SQL.
+* Todo repositorio de tenant recibe `scope` y lo aplica en `WHERE`; un `GetByID` fuera del
+  scope devuelve `nil` (el endpoint responde 404).
+* Está prohibido construir claves S3 fuera de `storage.Service.BuildKey(tenantID, ...)`.

@@ -13,8 +13,9 @@ import (
 // SchemaPrefix se antepone al slug para nombrar el schema del tenant.
 const SchemaPrefix = "tenant_"
 
-const selectTenant = `SELECT id, slug, name, schema_name, is_active, created_at, updated_at
-FROM shared.tenants`
+const tenantColumns = `id, slug, name, schema_name, is_active, timezone, currency, features, created_at, updated_at`
+
+const selectTenant = `SELECT ` + tenantColumns + ` FROM shared.tenants`
 
 // Repository persiste y recupera tenants. Incluye la creacion fisica del
 // schema dedicado (DDL), que es una operacion de infraestructura de datos.
@@ -54,10 +55,10 @@ func (r *Repository) ListAll(ctx context.Context, limit, offset int) ([]Tenant, 
 // Add inserta el tenant y devuelve la fila resultante.
 func (r *Repository) Add(ctx context.Context, t Tenant) (Tenant, error) {
 	rows, err := r.q.Query(ctx, `
-		INSERT INTO shared.tenants (slug, name, schema_name, is_active)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, slug, name, schema_name, is_active, created_at, updated_at`,
-		t.Slug, t.Name, t.SchemaName, t.IsActive,
+		INSERT INTO shared.tenants (slug, name, schema_name, is_active, features)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING `+tenantColumns,
+		t.Slug, t.Name, t.SchemaName, t.IsActive, t.Features,
 	)
 	if err != nil {
 		return Tenant{}, err
@@ -67,6 +68,13 @@ func (r *Repository) Add(ctx context.Context, t Tenant) (Tenant, error) {
 		return Tenant{}, ErrTenantSlugAlreadyExists
 	}
 	return tenant, err
+}
+
+// SetFeatures reemplaza las banderas de funcionalidad del tenant.
+func (r *Repository) SetFeatures(ctx context.Context, id uuid.UUID, features map[string]bool) error {
+	_, err := r.q.Exec(ctx,
+		"UPDATE shared.tenants SET features = $2, updated_at = now() WHERE id = $1", id, features)
+	return err
 }
 
 // CreateSchema crea el schema fisico del tenant. Falla si ya existe para no

@@ -19,6 +19,10 @@ type Tenant struct {
 	Name       string    `db:"name"`
 	SchemaName string    `db:"schema_name"` // schema real en PostgreSQL
 	IsActive   bool      `db:"is_active"`
-	CreatedAt  time.Time `db:"created_at"`
-	UpdatedAt  time.Time `db:"updated_at"`
+	Timezone   string    `db:"timezone"`
+	Currency   string    `db:"currency"`
+	// Features son las banderas de funcionalidad (authz.Features).
+	Features  map[string]bool `db:"features"`
+	CreatedAt time.Time       `db:"created_at"`
+	UpdatedAt time.Time       `db:"updated_at"`
 }

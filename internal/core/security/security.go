@@ -54,6 +54,9 @@ type TokenType string
 const (
 	TokenAccess  TokenType = "access"
 	TokenRefresh TokenType = "refresh"
+	// TokenSelection permite elegir empresa tras un login con varias
+	// membresias; dura minutos y no da acceso a la API.
+	TokenSelection TokenType = "selection"
 )
 
 // ErrInvalidToken se devuelve cuando un JWT es invalido o expiro.
@@ -92,6 +95,16 @@ func NewTokenManager(secret, algorithm string, accessTTL, refreshTTL time.Durati
 // conozca sin un viaje extra a la BD.
 func (m *TokenManager) CreateAccessToken(subject string, extraClaims map[string]any) (string, error) {
 	return m.create(subject, TokenAccess, m.accessTTL, extraClaims)
+}
+
+// CreateToken crea un JWT del tipo y duracion indicados.
+func (m *TokenManager) CreateToken(subject string, tokenType TokenType, ttl time.Duration, extraClaims map[string]any) (string, error) {
+	return m.create(subject, tokenType, ttl, extraClaims)
+}
+
+// AccessTTL es la duracion de los tokens de acceso.
+func (m *TokenManager) AccessTTL() time.Duration {
+	return m.accessTTL
 }
 
 // CreateRefreshToken crea un token de refresco de larga duracion.

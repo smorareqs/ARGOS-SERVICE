@@ -20,7 +20,7 @@ func TestLoadDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	if cfg.Environment != Local || cfg.HTTPPort != 8000 || cfg.JWTAlgorithm != "HS256" ||
-		cfg.AccessTokenExpireMinutes != 30 || cfg.RefreshTokenExpireDays != 7 {
+		cfg.AccessTokenExpireMinutes != 15 || cfg.RefreshTokenExpireDays != 60 {
 		t.Errorf("valores por defecto inesperados: %+v", cfg)
 	}
 	if !slices.Equal(cfg.CORSOrigins, []string{"*"}) {

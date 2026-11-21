@@ -8,6 +8,7 @@ import (
 
 	"github.com/smorareqs/argos-service/internal/core/database"
 	"github.com/smorareqs/argos-service/internal/core/migrate"
+	"github.com/smorareqs/argos-service/internal/modules/authz"
 )
 
 // Service contiene los casos de uso de tenants. Orquesta el alta: valida
@@ -44,7 +45,10 @@ func (s *Service) CreateTenant(ctx context.Context, in TenantCreate) (Tenant, er
 		}
 
 		schemaName := BuildSchemaName(slug)
-		tenant, err := repo.Add(ctx, Tenant{Name: in.Name, Slug: slug, SchemaName: schemaName, IsActive: true})
+		tenant, err := repo.Add(ctx, Tenant{
+			Name: in.Name, Slug: slug, SchemaName: schemaName, IsActive: true,
+			Features: normalizedFeatures(in.Features),
+		})
 		if err != nil {
 			return Tenant{}, err
 		}
@@ -53,6 +57,10 @@ func (s *Service) CreateTenant(ctx context.Context, in TenantCreate) (Tenant, er
 			return Tenant{}, err
 		}
 		if _, err := s.migrations.Up(ctx, q, schemaName); err != nil {
+			return Tenant{}, err
+		}
+		// Los siete roles de sistema con los permisos de la matriz del PRD.
+		if _, err := authz.SeedSystemRoles(ctx, q, tenant.ID); err != nil {
 			return Tenant{}, err
 		}
 		return tenant, nil
@@ -76,6 +84,27 @@ func (s *Service) GetTenant(ctx context.Context, id uuid.UUID) (Tenant, error) {
 		return Tenant{}, ErrTenantNotFound
 	}
 	return *tenant, nil
+}
+
+// GetTenantBySlug devuelve un tenant por slug.
+func (s *Service) GetTenantBySlug(ctx context.Context, slug string) (Tenant, error) {
+	tenant, err := database.InTxValue(ctx, s.db, func(q database.Querier) (*Tenant, error) {
+		return NewRepository(q).GetBySlug(ctx, slug)
+	})
+	if err != nil {
+		return Tenant{}, err
+	}
+	if tenant == nil {
+		return Tenant{}, ErrTenantNotFound
+	}
+	return *tenant, nil
+}
+
+// SetFeatures reemplaza las banderas de funcionalidad del tenant.
+func (s *Service) SetFeatures(ctx context.Context, id uuid.UUID, features map[string]bool) error {
+	return s.db.InTx(ctx, func(q database.Querier) error {
+		return NewRepository(q).SetFeatures(ctx, id, normalizedFeatures(features))
+	})
 }
 
 // ListTenants devuelve una pagina de tenants.

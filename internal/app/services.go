@@ -14,6 +14,7 @@ import (
 	"github.com/smorareqs/argos-service/internal/core/migrate"
 	"github.com/smorareqs/argos-service/internal/core/security"
 	"github.com/smorareqs/argos-service/internal/modules/auth"
+	"github.com/smorareqs/argos-service/internal/modules/authz"
 	"github.com/smorareqs/argos-service/internal/modules/health"
 	"github.com/smorareqs/argos-service/internal/modules/tenants"
 )
@@ -23,6 +24,7 @@ type Services struct {
 	Health  *health.Service
 	Auth    *auth.Service
 	Tenants *tenants.Service
+	Authz   *authz.Service
 }
 
 // NewServices construye todos los servicios.
@@ -42,8 +44,11 @@ func NewServices(cfg config.Config, db *database.DB, log *slog.Logger) (Services
 	}
 
 	return Services{
-		Health:  health.NewService(db, string(cfg.Environment)),
-		Auth:    auth.NewService(db, tokens, log.With("module", "auth")),
+		Health: health.NewService(db, string(cfg.Environment)),
+		Auth: auth.NewService(db, tokens, log.With("module", "auth"), auth.Options{
+			RefreshTTL: time.Duration(cfg.RefreshTokenExpireDays) * 24 * time.Hour,
+		}),
 		Tenants: tenants.NewService(db, tenantMigrations, log.With("module", "tenants")),
+		Authz:   authz.NewService(db, log.With("module", "authz")),
 	}, nil
 }

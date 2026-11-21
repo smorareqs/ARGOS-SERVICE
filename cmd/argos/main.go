@@ -27,6 +27,7 @@ Comandos:
   migrate shared up|down|status                 Migraciones del schema compartido
   migrate tenant up|down|status [-tenant SLUG]  Migraciones de tenants (por defecto todos; down exige -tenant)
   seed platform-admin EMAIL PASSWORD NOMBRE     Crea el primer platform_admin (idempotente)
+  seed demo-tenant                              Empresas y personas de demostracion (contrasena en ARGOS_SEED_PASSWORD)
 `
 
 var errUsage = errors.New("argumentos invalidos")

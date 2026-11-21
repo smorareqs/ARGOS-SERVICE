@@ -69,7 +69,13 @@ func migrateCmd(ctx context.Context, args []string) error {
 		if err := runner.Up(ctx, migrate.EnvShared, ""); err != nil {
 			return err
 		}
-		return runner.Up(ctx, migrate.EnvTenant, migrate.AllTenants)
+		if err := runner.Up(ctx, migrate.EnvTenant, migrate.AllTenants); err != nil {
+			return err
+		}
+		// Los permisos de los roles de sistema viven en Go (authz.SystemRoles):
+		// se sincronizan despues de migrar para que un cambio de la matriz
+		// llegue a todos los tenants.
+		return syncSystemRoles(ctx)
 	}
 
 	switch a.action {
@@ -98,6 +104,15 @@ func newRunner(ctx context.Context) (*migrate.Runner, func(), error) {
 		return nil, nil, err
 	}
 	return runner, db.Close, nil
+}
+
+func syncSystemRoles(ctx context.Context) error {
+	services, closeDB, err := newServices(ctx)
+	if err != nil {
+		return err
+	}
+	defer closeDB()
+	return services.Authz.SyncAllTenants(ctx)
 }
 
 func printStatus(w io.Writer, status []migrate.SchemaStatus) {

@@ -7,84 +7,81 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/smorareqs/argos-service/internal/core/security"
+	"github.com/smorareqs/argos-service/internal/modules/authz"
 )
 
-func newTokenService(t *testing.T) (*Service, *security.TokenManager) {
-	t.Helper()
-	tokens, err := security.NewTokenManager("test-secret", "HS256", time.Minute, time.Hour)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return NewService(nil, tokens, nil), tokens
-}
+func TestAttemptLimiterBlocksAfterTenFailures(t *testing.T) {
+	now := time.Date(2026, 11, 20, 10, 0, 0, 0, time.UTC)
+	l := newAttemptLimiter(func() time.Time { return now })
+	key := "ana@garrent.gt|10.0.0.1"
 
-func TestIssueAndParseTokens(t *testing.T) {
-	svc, _ := newTokenService(t)
-	tenantID := uuid.New()
-	user := User{ID: uuid.New(), Role: RoleAdmin, TenantID: &tenantID}
-
-	token, err := svc.IssueTokens(user)
-	if err != nil {
-		t.Fatal(err)
+	for range maxFailedAttempts - 1 {
+		l.fail(key)
 	}
-	if token.TokenType != "bearer" {
-		t.Errorf("token_type = %q", token.TokenType)
+	if wait := l.blockedFor(key); wait != 0 {
+		t.Fatalf("con 9 fallos no deberia bloquear (espera %v)", wait)
 	}
-
-	access, err := svc.ParseToken(token.AccessToken)
-	if err != nil {
-		t.Fatal(err)
+	l.fail(key)
+	now = now.Add(5 * time.Minute)
+	if wait := l.blockedFor(key); wait != 10*time.Minute {
+		t.Fatalf("espera = %v, se esperaban 10m", wait)
 	}
-	if access.Sub != user.ID || access.Role != RoleAdmin || access.Type != security.TokenAccess ||
-		access.TenantID == nil || *access.TenantID != tenantID {
-		t.Errorf("payload de acceso inesperado: %+v", access)
+	if wait := l.blockedFor("ana@garrent.gt|10.0.0.2"); wait != 0 {
+		t.Errorf("otra IP no deberia estar bloqueada")
 	}
-
-	refresh, err := svc.ParseToken(token.RefreshToken)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if refresh.Type != security.TokenRefresh {
-		t.Errorf("tipo del refresh = %q", refresh.Type)
+	now = now.Add(10 * time.Minute)
+	if wait := l.blockedFor(key); wait != 0 {
+		t.Errorf("al terminar la ventana deberia desbloquear (espera %v)", wait)
 	}
 }
 
-func TestParseTokenWithoutTenant(t *testing.T) {
-	svc, _ := newTokenService(t)
-	token, err := svc.IssueTokens(User{ID: uuid.New(), Role: RolePlatformAdmin})
-	if err != nil {
-		t.Fatal(err)
+func TestAttemptLimiterResetClearsFailures(t *testing.T) {
+	l := newAttemptLimiter(time.Now)
+	for range maxFailedAttempts {
+		l.fail("k")
 	}
-	payload, err := svc.ParseToken(token.AccessToken)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if payload.TenantID != nil {
-		t.Errorf("tenant_id deberia ser nil: %v", payload.TenantID)
+	l.reset("k")
+	if wait := l.blockedFor("k"); wait != 0 {
+		t.Errorf("tras un login correcto no deberia quedar bloqueo")
 	}
 }
 
-func TestParseTokenRejectsBadClaims(t *testing.T) {
-	svc, tokens := newTokenService(t)
-	cases := map[string]struct {
-		sub    string
-		claims map[string]any
-	}{
-		"sub no uuid":       {"user-123", map[string]any{"role": "admin"}},
-		"rol desconocido":   {uuid.NewString(), map[string]any{"role": "root"}},
-		"sin rol":           {uuid.NewString(), nil},
-		"tenant_id no uuid": {uuid.NewString(), map[string]any{"role": "admin", "tenant_id": "x"}},
+func TestOpaqueTokensAreRandomAndHashed(t *testing.T) {
+	a, err := newOpaqueToken()
+	if err != nil {
+		t.Fatal(err)
 	}
-	for name, c := range cases {
-		t.Run(name, func(t *testing.T) {
-			token, err := tokens.CreateAccessToken(c.sub, c.claims)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err := svc.ParseToken(token); !errors.Is(err, ErrInvalidToken) {
-				t.Errorf("se esperaba ErrInvalidToken, se obtuvo %v", err)
-			}
-		})
+	b, _ := newOpaqueToken()
+	if a == b || len(a) < 40 {
+		t.Fatalf("tokens inesperados: %q %q", a, b)
+	}
+	if h := hashToken(a); len(h) != 64 || h == hashToken(b) || h != hashToken(a) {
+		t.Errorf("hash inesperado: %q", h)
+	}
+}
+
+func TestPrincipalCan(t *testing.T) {
+	p := Principal{Permissions: map[authz.Permission]bool{authz.UsersRead: true, authz.TasksRead: true}}
+	if !p.Can(authz.UsersRead, authz.TasksRead) || p.Can(authz.UsersRead, authz.UsersManage) {
+		t.Error("Can no respeta todos los permisos pedidos")
+	}
+	if !p.Platform() {
+		t.Error("sin membresia deberia ser modo plataforma")
+	}
+}
+
+func TestReusedErrorIsInvalidToken(t *testing.T) {
+	err := error(&reusedError{family: uuid.New()})
+	if !errors.Is(err, ErrInvalidToken) {
+		t.Error("un refresh reutilizado debe responder como token invalido")
+	}
+}
+
+func TestValidIP(t *testing.T) {
+	if ip := validIP("172.18.0.1"); ip == nil || *ip != "172.18.0.1" {
+		t.Errorf("IPv4 valida descartada: %v", ip)
+	}
+	if ip := validIP("no-es-ip"); ip != nil {
+		t.Errorf("una IP invalida deberia ser nil: %v", *ip)
 	}
 }

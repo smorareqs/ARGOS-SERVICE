@@ -32,6 +32,7 @@ func New(cfg config.Config, log *slog.Logger, svc app.Services) http.Handler {
 	router.Use(accessLog(log))
 	router.Use(middleware.Recoverer)
 	router.Use(corsHandler(cfg.CORSOrigins))
+	router.Use(api.WithClientIP)
 
 	humaAPI := humachi.New(router, humaConfig())
 	v1.Register(humaAPI, svc)
@@ -48,20 +49,12 @@ func humaConfig() huma.Config {
 	cfg.DocsPath = "/docs"
 	cfg.DocsRenderer = huma.DocsRendererSwaggerUI
 	cfg.Formats = map[string]huma.Format{
-		"application/json":                  huma.DefaultJSONFormat,
-		"json":                              huma.DefaultJSONFormat,
-		"application/x-www-form-urlencoded": api.FormURLEncoded,
+		"application/json": huma.DefaultJSONFormat,
+		"json":             huma.DefaultJSONFormat,
 	}
+	// Swagger UI: pegar el access_token de POST /auth/login en "Authorize".
 	cfg.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
-		api.SecurityScheme: {
-			Type: "oauth2",
-			Flows: &huma.OAuthFlows{
-				Password: &huma.OAuthFlow{
-					TokenURL: v1.Prefix + "/auth/login",
-					Scopes:   map[string]string{},
-				},
-			},
-		},
+		api.SecurityScheme: {Type: "http", Scheme: "bearer", BearerFormat: "JWT"},
 	}
 	return cfg
 }
@@ -71,8 +64,10 @@ func humaConfig() huma.Config {
 // credenciales.
 func corsHandler(origins []string) func(http.Handler) http.Handler {
 	opts := cors.Options{
-		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"*"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{"*"},
+		// El cliente lee Retry-After de un 429 para mostrar la espera.
+		ExposedHeaders:   []string{"Retry-After"},
 		AllowCredentials: true,
 		MaxAge:           600,
 	}

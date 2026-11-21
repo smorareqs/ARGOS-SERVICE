@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/smorareqs/argos-service/internal/api"
-	"github.com/smorareqs/argos-service/internal/modules/auth"
 	"github.com/smorareqs/argos-service/internal/modules/tenants"
 )
 
@@ -34,9 +33,9 @@ type tenantListOutput struct {
 }
 
 func registerTenants(v1 huma.API, svc *tenants.Service, guard *api.Guard) {
-	grp := huma.NewGroup(v1, "/tenants")
+	grp := huma.NewGroup(v1, "/platform/tenants")
 	// La administracion de tenants es competencia del proveedor (ARGOS).
-	grp.UseMiddleware(guard.RequireRole(auth.RolePlatformAdmin)...)
+	grp.UseMiddleware(guard.RequirePlatformAdmin()...)
 	grp.UseSimpleModifier(func(op *huma.Operation) {
 		op.Tags = []string{"tenants"}
 		op.Security = api.Secured

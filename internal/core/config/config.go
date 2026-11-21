@@ -51,8 +51,8 @@ type Config struct {
 	// --- Seguridad / JWT ---
 	SecretKey                string `env:"SECRET_KEY,required,notEmpty"`
 	JWTAlgorithm             string `env:"JWT_ALGORITHM" envDefault:"HS256"`
-	AccessTokenExpireMinutes int    `env:"ACCESS_TOKEN_EXPIRE_MINUTES" envDefault:"30"`
-	RefreshTokenExpireDays   int    `env:"REFRESH_TOKEN_EXPIRE_DAYS" envDefault:"7"`
+	AccessTokenExpireMinutes int    `env:"ACCESS_TOKEN_EXPIRE_MINUTES" envDefault:"15"`
+	RefreshTokenExpireDays   int    `env:"REFRESH_TOKEN_EXPIRE_DAYS" envDefault:"60"`
 
 	// --- CORS --- Lista separada por comas; "*" admite cualquier origen.
 	CORSOrigins []string `env:"CORS_ORIGINS" envDefault:"*" envSeparator:","`
