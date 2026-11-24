@@ -1,0 +1,6 @@
+{{define "subject"}}Tienes una acción disciplinaria por leer · {{.TenantName}}{{end}}
+{{define "text"}}Hola {{.Name}}, {{.TenantName}} registró {{.TypeLabel}} con fecha {{.Date}}.{{if .Suspension}} Suspensión del {{.SuspensionFrom}} al {{.SuspensionTo}}.{{end}}
+
+Entra a la app ARGOS, en Mi historial, para leer el detalle y dar tu acuse. Puedes dejar una nota con tu versión.
+
+Esto no cambia tu salario. Si tienes dudas, habla con recursos humanos de {{.TenantName}}.{{end}}

@@ -75,6 +75,8 @@ func StartDB(ctx context.Context) (*database.DB, func(), error) {
 func Reset(ctx context.Context, db *database.DB) error {
 	_, err := db.Pool().Exec(ctx, `
 		TRUNCATE shared.users, shared.tenants CASCADE;
+		TRUNCATE shared.payment_events;
+		DELETE FROM shared.plans WHERE key NOT IN ('inicio', 'operacion', 'completo');
 		DO $$
 		DECLARE s text;
 		BEGIN

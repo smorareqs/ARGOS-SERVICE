@@ -17,6 +17,7 @@ import (
 
 	"github.com/smorareqs/argos-service/internal/core/database"
 	"github.com/smorareqs/argos-service/internal/core/security"
+	"github.com/smorareqs/argos-service/internal/core/storage"
 	"github.com/smorareqs/argos-service/internal/modules/authz"
 )
 
@@ -38,6 +39,12 @@ const (
 type Options struct {
 	// RefreshTTL es la vigencia de la sesion en movil; en web se limita a 30 dias.
 	RefreshTTL time.Duration
+	// Cipher cifra el secreto TOTP en reposo.
+	Cipher *security.FieldCipher
+	// Storage firma las URLs de los logos de empresa (puede ser nil).
+	Storage *storage.Service
+	// WebBaseURL arma los enlaces de los correos (invitaciones, contrasena).
+	WebBaseURL string
 }
 
 // Service contiene la logica de autenticacion: login multiempresa, sesiones
@@ -50,16 +57,33 @@ type Service struct {
 	refreshTTL time.Duration
 	limiter    *attemptLimiter
 	now        func() time.Time
+	cipher     *security.FieldCipher
+	storage    *storage.Service
+	webBase    string
+	limits     Limits
 }
+
+// Limits verifica los limites del plan antes de crear (fase 6). Lo implementa
+// billing.Service; sin el, no hay limites.
+type Limits interface {
+	CheckLimit(ctx context.Context, q database.Querier, tenantID uuid.UUID, kind, field string) error
+}
+
+// SetLimits engancha los limites del plan.
+func (s *Service) SetLimits(l Limits) { s.limits = l }
 
 // NewService crea el servicio.
 func NewService(db *database.DB, tokens *security.TokenManager, log *slog.Logger, opts Options) *Service {
 	if opts.RefreshTTL <= 0 {
 		opts.RefreshTTL = 60 * 24 * time.Hour
 	}
+	if opts.WebBaseURL == "" {
+		opts.WebBaseURL = "http://localhost:4200"
+	}
 	return &Service{
 		db: db, tokens: tokens, log: log, refreshTTL: opts.RefreshTTL,
 		limiter: newAttemptLimiter(time.Now), now: time.Now,
+		cipher: opts.Cipher, storage: opts.Storage, webBase: strings.TrimRight(opts.WebBaseURL, "/"),
 	}
 }
 
@@ -153,7 +177,10 @@ func (s *Service) Login(ctx context.Context, in LoginRequest, ip string) (Sessio
 			if err != nil {
 				return SessionResponse{}, err
 			}
-			return SessionResponse{Status: StatusSelectTenant, SelectionToken: selection, Memberships: reads(usable)}, nil
+			return SessionResponse{
+				Status: StatusSelectTenant, SelectionToken: selection, Memberships: s.reads(ctx, usable),
+				PlatformAdmin: user.IsPlatformAdmin,
+			}, nil
 		case user.IsPlatformAdmin:
 			return s.openSession(ctx, q, *user, nil, device, ip, usable)
 		default:
@@ -184,14 +211,17 @@ func (s *Service) checkCredentials(ctx context.Context, in LoginRequest, ip stri
 		return nil, ErrInactiveUser
 	}
 	if user.TOTPEnabled {
-		// La verificacion en dos pasos (alta y validacion del codigo) llega con
-		// /auth/totp/*. Mientras tanto una cuenta con TOTP no puede entrar sin
-		// codigo y ningun codigo se acepta.
 		if strings.TrimSpace(in.TOTPCode) == "" {
 			return nil, ErrTOTPRequired
 		}
-		s.limiter.fail(key)
-		return nil, ErrInvalidTOTP
+		ok, err := s.verifyTOTP(ctx, user.ID, in.TOTPCode)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			s.limiter.fail(key)
+			return nil, ErrInvalidTOTP
+		}
 	}
 	s.limiter.reset(key)
 	return user, nil
@@ -201,10 +231,12 @@ func (s *Service) checkCredentials(ctx context.Context, in LoginRequest, ip stri
 // activa.
 func (s *Service) SelectTenant(ctx context.Context, in SelectTenantRequest, ip string) (SessionResponse, error) {
 	switch {
+	case in.TenantID == uuid.Nil && !in.Platform:
+		return SessionResponse{}, ErrInvalidSelection
 	case in.SelectionToken != "" && in.Device != nil:
 		return s.selectAfterLogin(ctx, in, ip)
 	case in.RefreshToken != "":
-		return s.switchTenant(ctx, in.TenantID, in.RefreshToken, ip)
+		return s.switchTenant(ctx, in, ip)
 	default:
 		return SessionResponse{}, ErrInvalidSelection
 	}
@@ -232,15 +264,16 @@ func (s *Service) selectAfterLogin(ctx context.Context, in SelectTenantRequest, 
 		if err != nil {
 			return SessionResponse{}, err
 		}
-		chosen := findMembership(usable, in.TenantID)
-		if chosen == nil {
-			return SessionResponse{}, ErrNoMembership
+		chosen, err := chooseTarget(user, usable, in)
+		if err != nil {
+			return SessionResponse{}, err
 		}
 		return s.openSession(ctx, q, user, chosen, device, ip, usable)
 	})
 }
 
-func (s *Service) switchTenant(ctx context.Context, tenantID uuid.UUID, refresh, ip string) (SessionResponse, error) {
+func (s *Service) switchTenant(ctx context.Context, in SelectTenantRequest, ip string) (SessionResponse, error) {
+	refresh := in.RefreshToken
 	out, err := database.InTxValue(ctx, s.db, func(q database.Querier) (SessionResponse, error) {
 		repo := NewRepository(q)
 		current, err := s.validRefresh(ctx, repo, refresh, "")
@@ -255,9 +288,9 @@ func (s *Service) switchTenant(ctx context.Context, tenantID uuid.UUID, refresh,
 		if err != nil {
 			return SessionResponse{}, err
 		}
-		chosen := findMembership(usable, tenantID)
-		if chosen == nil {
-			return SessionResponse{}, ErrNoMembership
+		chosen, err := chooseTarget(user, usable, in)
+		if err != nil {
+			return SessionResponse{}, err
 		}
 		if err := repo.RevokeRefreshToken(ctx, current.ID); err != nil {
 			return SessionResponse{}, err
@@ -266,9 +299,25 @@ func (s *Service) switchTenant(ctx context.Context, tenantID uuid.UUID, refresh,
 		if err != nil {
 			return SessionResponse{}, err
 		}
-		return s.authenticated(access, refreshToken, usable), nil
+		return s.authenticated(ctx, user, access, refreshToken, usable), nil
 	})
 	return out, s.revokeIfReused(ctx, err)
+}
+
+// chooseTarget resuelve la empresa elegida (o el modo plataforma, que exige
+// ser administrador de ARGOS). nil = modo plataforma.
+func chooseTarget(user User, usable []authz.MembershipView, in SelectTenantRequest) (*authz.MembershipView, error) {
+	if in.Platform {
+		if !user.IsPlatformAdmin {
+			return nil, ErrPlatformNotAllowed
+		}
+		return nil, nil
+	}
+	chosen := findMembership(usable, in.TenantID)
+	if chosen == nil {
+		return nil, ErrNoMembership
+	}
+	return chosen, nil
 }
 
 // Refresh rota el refresh token: revoca el presentado y emite uno nuevo de la
@@ -371,14 +420,6 @@ func (s *Service) Logout(ctx context.Context, refresh string) error {
 	})
 }
 
-// ForgotPassword inicia la recuperacion de contrasena. Responde igual exista
-// o no el correo. El envio del enlace llega con la cola de correo (fase01.md
-// §3.9); por ahora solo se registra.
-func (s *Service) ForgotPassword(ctx context.Context, email string) {
-	s.log.InfoContext(ctx, "Solicitud de recuperacion de contrasena (envio de correo pendiente)",
-		"email_domain", domainOf(email))
-}
-
 // Me arma la respuesta de GET /auth/me para el principal.
 func (s *Service) Me(ctx context.Context, p Principal) (MeResponse, error) {
 	usable, err := database.InTxValue(ctx, s.db, func(q database.Querier) ([]authz.MembershipView, error) {
@@ -389,11 +430,11 @@ func (s *Service) Me(ctx context.Context, p Principal) (MeResponse, error) {
 	}
 	out := MeResponse{
 		User: MeUser{
-			ID: p.User.ID, Email: p.User.Email, FullName: p.User.FullName,
+			ID: p.User.ID, Email: p.User.Email, FullName: p.User.FullName, Phone: p.User.Phone,
 			TOTPEnabled: p.User.TOTPEnabled, IsPlatformAdmin: p.User.IsPlatformAdmin,
 		},
 		Permissions: make([]authz.Permission, 0, len(p.Permissions)),
-		Memberships: reads(usable),
+		Memberships: s.reads(ctx, usable),
 	}
 	for _, perm := range authz.All {
 		if p.Permissions[perm] {
@@ -406,8 +447,10 @@ func (s *Service) Me(ctx context.Context, p Principal) (MeResponse, error) {
 			features[string(f)] = m.TenantFeatures[string(f)]
 		}
 		out.Tenant = &MeTenant{
-			ID: m.TenantID, Name: m.TenantName, Timezone: m.TenantTimezone,
+			ID: m.TenantID, Name: m.TenantName, LogoURL: s.storage.LogoURL(ctx, m.TenantID, m.TenantLogoKey),
+			Timezone: m.TenantTimezone,
 			Currency: strings.TrimSpace(m.TenantCurrency), Features: features,
+			BillingStatus: m.TenantBillingStatus, ReadOnly: m.ReadOnly(),
 		}
 		out.Role = &MeRole{Key: m.RoleKey, Name: m.RoleName}
 	}
@@ -496,7 +539,7 @@ func (s *Service) openSession(
 	if err != nil {
 		return SessionResponse{}, err
 	}
-	return s.authenticated(access, refresh, usable), nil
+	return s.authenticated(ctx, user, access, refresh, usable), nil
 }
 
 // issue emite el access token y guarda un refresh token nuevo en la familia.
@@ -534,10 +577,10 @@ func (s *Service) issue(
 	return access, refresh, err
 }
 
-func (s *Service) authenticated(access, refresh string, usable []authz.MembershipView) SessionResponse {
+func (s *Service) authenticated(ctx context.Context, user User, access, refresh string, usable []authz.MembershipView) SessionResponse {
 	return SessionResponse{
 		Status: StatusAuthenticated, AccessToken: access, RefreshToken: refresh,
-		ExpiresIn: s.expiresIn(), Memberships: reads(usable),
+		ExpiresIn: s.expiresIn(), Memberships: s.reads(ctx, usable), PlatformAdmin: user.IsPlatformAdmin,
 	}
 }
 
@@ -579,10 +622,11 @@ func findMembership(list []authz.MembershipView, tenantID uuid.UUID) *authz.Memb
 	return nil
 }
 
-func reads(list []authz.MembershipView) []MembershipRead {
+// reads arma las empresas para el cliente, con la URL firmada de cada logo.
+func (s *Service) reads(ctx context.Context, list []authz.MembershipView) []MembershipRead {
 	out := make([]MembershipRead, 0, len(list))
 	for _, m := range list {
-		out = append(out, NewMembershipRead(m))
+		out = append(out, NewMembershipRead(m, s.storage.LogoURL(ctx, m.TenantID, m.TenantLogoKey)))
 	}
 	return out
 }

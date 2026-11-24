@@ -22,6 +22,8 @@ type SystemRole struct {
 	Key         RoleKey
 	Name        string
 	Permissions []Permission
+	// Scoped: solo ve sus propiedades asignadas o propias (ScopeResolver).
+	Scoped bool
 }
 
 // SystemRoles es la matriz de roles por defecto del PRD seccion 3.4, unica
@@ -29,7 +31,7 @@ type SystemRole struct {
 // SyncSystemRoles escribe estos permisos.
 //
 // Los alcances ("asignadas", "propias", "hoy"...) no son permisos distintos:
-// los aplica el ScopeResolver de cada modulo (fase 2).
+// los roles con Scoped solo ven sus propiedades (PropertyScope, scope.go).
 var SystemRoles = []SystemRole{
 	{Key: RoleAdmin, Name: "Administrador", Permissions: without(All, HRDisciplinaryOwn)},
 	{Key: RoleSupervisor, Name: "Supervisor", Permissions: without(All,
@@ -42,7 +44,7 @@ var SystemRoles = []SystemRole{
 		HRAttendanceManage, HRPayrollManage, HRPayrollExport, HRDisciplinaryManage,
 		MetricsAll,
 	)},
-	{Key: RoleCleaner, Name: "Colaborador de limpieza", Permissions: []Permission{
+	{Key: RoleCleaner, Name: "Colaborador de limpieza", Scoped: true, Permissions: []Permission{
 		PropertiesRead, PropertiesAccessInfo,
 		TasksRead, TasksExecute,
 		InventoryRead, InventoryCheckout,
@@ -51,7 +53,7 @@ var SystemRoles = []SystemRole{
 		MetricsOwn,
 		ChatInternal,
 	}},
-	{Key: RoleMaintenance, Name: "Mantenimiento", Permissions: []Permission{
+	{Key: RoleMaintenance, Name: "Mantenimiento", Scoped: true, Permissions: []Permission{
 		PropertiesRead, PropertiesAccessInfo,
 		TasksRead, TasksExecute,
 		InventoryRead, InventoryCheckout,
@@ -74,7 +76,7 @@ var SystemRoles = []SystemRole{
 		AlertsRead,
 		ChatInternal,
 	}},
-	{Key: RoleOwner, Name: "Propietario", Permissions: []Permission{
+	{Key: RoleOwner, Name: "Propietario", Scoped: true, Permissions: []Permission{
 		PropertiesRead,
 		TasksRead,
 		MaintenanceRead, MaintenanceReport,
@@ -83,7 +85,7 @@ var SystemRoles = []SystemRole{
 		MetricsAll,
 		ReportsExport,
 	}},
-	{Key: RoleGuest, Name: "Huésped", Permissions: []Permission{
+	{Key: RoleGuest, Name: "Huésped", Scoped: true, Permissions: []Permission{
 		PropertiesRead,
 		MaintenanceReport,
 		ReservationsRead,

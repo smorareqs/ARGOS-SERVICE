@@ -1,0 +1,7 @@
+{{define "preheader"}}Se registró {{.TypeLabel}} en tu expediente. Léela y confirma que la recibiste.{{end}}
+{{define "content"}}
+<h1 style="margin:0 0 12px;font-size:22px;line-height:30px;color:#003841;">Tienes una acción disciplinaria por leer</h1>
+<p style="margin:0 0 12px;font-size:15px;line-height:24px;">Hola {{.Name}}, {{.TenantName}} registró <strong>{{.TypeLabel}}</strong> con fecha {{.Date}}.{{if .Suspension}} Suspensión del {{.SuspensionFrom}} al {{.SuspensionTo}}.{{end}}</p>
+<p style="margin:0;font-size:14px;line-height:22px;">Entra a la app ARGOS, en <strong>Mi historial</strong>, para leer el detalle y dar tu acuse. Puedes dejar una nota con tu versión.</p>
+<p style="margin:16px 0 0;font-size:13px;line-height:20px;color:#7d7d72;">Esto no cambia tu salario. Si tienes dudas, habla con recursos humanos de {{.TenantName}}.</p>
+{{end}}

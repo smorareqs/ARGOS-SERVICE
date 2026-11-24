@@ -1,0 +1,8 @@
+{{define "preheader"}}{{.Title}}: {{.Summary}}{{end}}
+{{define "content"}}
+<h1 style="margin:0 0 12px;font-size:22px;line-height:30px;color:#003841;">{{.Title}}</h1>
+<p style="margin:0 0 12px;font-size:15px;line-height:24px;">Hola {{.Name}}, {{.Summary}}</p>
+{{range .Lines}}<p style="margin:0 0 8px;font-size:15px;line-height:24px;">{{.}}</p>{{end}}
+<p style="margin:16px 0 0;font-size:14px;line-height:22px;">Revisa el plan y las facturas de {{.TenantName}} en ARGOS, en <strong>Configuración › Facturación</strong>: {{.Link}}</p>
+<p style="margin:16px 0 0;font-size:13px;line-height:20px;color:#7d7d72;">Recibes este correo porque administras la facturación de {{.TenantName}}.</p>
+{{end}}

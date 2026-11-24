@@ -14,6 +14,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	// Zonas horarias embebidas: la imagen de produccion no trae tzdata.
+	_ "time/tzdata"
+
 	"github.com/smorareqs/argos-service/internal/core/config"
 	"github.com/smorareqs/argos-service/internal/core/database"
 	"github.com/smorareqs/argos-service/internal/core/logging"
@@ -23,6 +26,7 @@ const usage = `Uso: argos <comando> [argumentos]
 
 Comandos:
   serve                                         Arranca la API HTTP
+  worker                                        Ejecuta la cola de trabajos (correos, limpieza de archivos)
   migrate up                                    Aplica las migraciones de shared y de todos los tenants
   migrate shared up|down|status                 Migraciones del schema compartido
   migrate tenant up|down|status [-tenant SLUG]  Migraciones de tenants (por defecto todos; down exige -tenant)
@@ -52,6 +56,8 @@ func run(ctx context.Context, args []string) error {
 	switch args[0] {
 	case "serve":
 		return serve(ctx)
+	case "worker":
+		return worker(ctx)
 	case "migrate":
 		return migrateCmd(ctx, args[1:])
 	case "seed":

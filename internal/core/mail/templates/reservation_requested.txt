@@ -1,0 +1,8 @@
+{{define "subject"}}Reserva por confirmar: {{.Property}}, {{.Range}}{{end}}
+{{define "text"}}Hola {{.Name}}, {{.Guest}} pidió {{.Property}} del {{.Range}} ({{.Nights}}).
+
+Quedó como por confirmar con el código {{.Code}}. Revísala y confírmala para que el huésped reciba su correo.
+
+Ábrela en ARGOS: {{.Link}}
+
+Entró con la clave API «{{.KeyName}}».{{end}}

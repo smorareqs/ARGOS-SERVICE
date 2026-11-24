@@ -1,0 +1,15 @@
+{{define "subject"}}Reserva {{.Code}} confirmada · {{.PropertyName}}{{end}}
+{{define "text"}}Hola {{.GuestName}}, tu reserva está confirmada. Te esperamos en {{.Place}}.
+
+Código: {{.Code}}
+Llegada: {{.CheckIn}}, desde las {{.CheckInTime}}
+Salida: {{.CheckOut}}, antes de las {{.CheckOutTime}}
+Noches: {{.Nights}}
+{{if .Instructions}}
+Antes de llegar:
+{{.Instructions}}
+{{end}}{{if .AppCode}}
+En la app ARGOS ves tu reserva: entra con tu correo y el código {{.AppCode}}.{{if .AppLink}}
+{{.AppLink}}{{end}}
+{{end}}
+¿Necesitas cambiar algo? Responde a este correo y {{.TenantName}} te ayuda.{{end}}

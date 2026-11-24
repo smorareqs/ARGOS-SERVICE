@@ -29,7 +29,7 @@ func NewService(db *database.DB, log *slog.Logger) *Service {
 func SeedSystemRoles(ctx context.Context, q database.Querier, tenantID uuid.UUID) (changed int, err error) {
 	repo := NewRepository(q)
 	for _, def := range SystemRoles {
-		role, err := repo.UpsertSystemRole(ctx, tenantID, def.Key, def.Name)
+		role, err := repo.UpsertSystemRole(ctx, tenantID, def)
 		if err != nil {
 			return changed, err
 		}

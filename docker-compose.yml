@@ -13,6 +13,17 @@ x-argos-env: &argos-env
   ARGOS_POSTGRES_PASSWORD: ${ARGOS_POSTGRES_PASSWORD:?define ARGOS_POSTGRES_PASSWORD en .env}
   ARGOS_POSTGRES_DB: ${ARGOS_POSTGRES_DB:?define ARGOS_POSTGRES_DB en .env}
   ARGOS_SECRET_KEY: ${ARGOS_SECRET_KEY:?define ARGOS_SECRET_KEY en .env}
+  # Enlaces de los correos (invitaciones, contrasena) apuntan a la web local.
+  ARGOS_WEB_BASE_URL: http://localhost:4200
+  # S3 local: RustFS. La API habla con rustfs:9000 dentro de Docker y firma las
+  # URLs con localhost:9000, que es como lo ve el navegador.
+  ARGOS_S3_BUCKET: argos-local
+  ARGOS_S3_ENDPOINT_URL: http://rustfs:9000
+  ARGOS_S3_PUBLIC_ENDPOINT_URL: http://localhost:9000
+  ARGOS_S3_ACCESS_KEY: ${ARGOS_S3_ACCESS_KEY:?define ARGOS_S3_ACCESS_KEY en .env}
+  ARGOS_S3_SECRET_KEY: ${ARGOS_S3_SECRET_KEY:?define ARGOS_S3_SECRET_KEY en .env}
+  # Los correos no se envian: quedan en el log del worker y en tmp/mail/*.html.
+  ARGOS_MAIL_DRIVER: log
 
 x-argos-dev: &argos-dev
   build:
@@ -55,6 +66,24 @@ services:
         condition: service_healthy
     command: ["go", "run", "./cmd/argos", "migrate", "up"]
 
+  # Emulador S3 (solo desarrollo; en despliegue es Amazon S3). Consola en
+  # http://localhost:9001 con las claves del .env.
+  rustfs:
+    image: rustfs/rustfs:1.0.5
+    container_name: argos-rustfs
+    environment:
+      RUSTFS_ACCESS_KEY: ${ARGOS_S3_ACCESS_KEY:?define ARGOS_S3_ACCESS_KEY en .env}
+      RUSTFS_SECRET_KEY: ${ARGOS_S3_SECRET_KEY:?define ARGOS_S3_SECRET_KEY en .env}
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_CORS_ALLOWED_ORIGINS: "*"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - argos_s3data:/data
+
   api:
     <<: *argos-dev
     container_name: argos-api
@@ -63,8 +92,22 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      rustfs:
+        condition: service_started
     ports:
       - "8000:8000"
+
+  # Cola de trabajos: correos (invitaciones, contrasenas) y limpieza de
+  # archivos. Hot-reload con su propia config de air.
+  worker:
+    <<: *argos-dev
+    container_name: argos-worker
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      rustfs:
+        condition: service_started
+    command: ["air", "-c", ".air.worker.toml"]
 
   # Empresas y cuentas de demostracion (argos seed demo-tenant). Idempotente:
   # en cada `up` deja las cuentas con la contrasena de ARGOS_SEED_PASSWORD.
@@ -90,6 +133,8 @@ services:
 volumes:
   argos_pgdata:
     name: backend_argos_pgdata
+  argos_s3data:
+    name: argos_s3data
   go_mod_cache:
     name: argos_go_mod_cache
   go_build_cache:

@@ -17,6 +17,7 @@ type Pinger interface {
 type Service struct {
 	db          Pinger
 	environment string
+	ready       *Readiness
 }
 
 // NewService crea el servicio.

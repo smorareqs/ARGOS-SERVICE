@@ -1,0 +1,6 @@
+{{define "subject"}}{{if eq .Kind "received"}}Recibimos tu depósito · {{.Code}}{{else if eq .Kind "returned"}}Te devolvimos tu depósito · {{.Code}}{{else}}Movimiento en tu depósito · {{.Code}}{{end}}{{end}}
+{{define "text"}}Hola {{.GuestName}}, {{if eq .Kind "received"}}registramos {{.Amount}} como depósito de tu reserva {{.Code}} en {{.PropertyName}}. Te lo devolvemos después de tu salida, cuando revisemos la propiedad.{{else if eq .Kind "returned"}}te devolvimos {{.Amount}} del depósito de tu reserva {{.Code}} en {{.PropertyName}}.{{else}}retuvimos {{.Amount}} del depósito de tu reserva {{.Code}} en {{.PropertyName}} por lo que encontramos en la revisión de salida.{{end}}
+{{if .HasBalance}}
+Queda a tu favor: {{.Balance}}.
+{{end}}
+Si tienes dudas sobre este movimiento, responde a este correo y {{.TenantName}} te ayuda.{{end}}

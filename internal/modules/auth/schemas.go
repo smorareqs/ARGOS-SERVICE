@@ -64,9 +64,10 @@ type MembershipRead struct {
 }
 
 // NewMembershipRead construye la representacion publica de m.
-func NewMembershipRead(m authz.MembershipView) MembershipRead {
-	// El logo vive en S3 (fase01.md §3.8); hasta entonces no hay URL.
-	return MembershipRead{TenantID: m.TenantID, TenantName: m.TenantName, RoleKey: m.RoleKey, RoleName: m.RoleName}
+func NewMembershipRead(m authz.MembershipView, logoURL *string) MembershipRead {
+	return MembershipRead{
+		TenantID: m.TenantID, TenantName: m.TenantName, TenantLogoURL: logoURL, RoleKey: m.RoleKey, RoleName: m.RoleName,
+	}
 }
 
 // SessionResponse es la respuesta de login, select-tenant y aceptar invitacion.
@@ -79,13 +80,17 @@ type SessionResponse struct {
 	ExpiresIn      int              `json:"expires_in,omitempty" doc:"Segundos de vigencia del access token."`
 	SelectionToken string           `json:"selection_token,omitempty"`
 	Memberships    []MembershipRead `json:"memberships"`
+	// PlatformAdmin indica que la persona tambien puede entrar a la
+	// administracion de ARGOS (select-tenant con platform: true).
+	PlatformAdmin bool `json:"platform_admin,omitempty"`
 }
 
 // SelectTenantRequest es el cuerpo de POST /auth/select-tenant: tras el login
 // (selection_token + device) o para cambiar de empresa (refresh_token).
 type SelectTenantRequest struct {
 	_              struct{}  `additionalProperties:"true"`
-	TenantID       uuid.UUID `json:"tenant_id" format:"uuid"`
+	TenantID       uuid.UUID `json:"tenant_id,omitempty" format:"uuid" doc:"Obligatorio salvo con platform."`
+	Platform       bool      `json:"platform,omitempty" doc:"true para entrar a la administracion de ARGOS (solo platform_admin)."`
 	SelectionToken string    `json:"selection_token,omitempty"`
 	Device         *Device   `json:"device,omitempty"`
 	RefreshToken   string    `json:"refresh_token,omitempty"`
@@ -122,6 +127,7 @@ type MeUser struct {
 	ID              uuid.UUID `json:"id" format:"uuid"`
 	Email           string    `json:"email"`
 	FullName        string    `json:"full_name"`
+	Phone           *string   `json:"phone" nullable:"true"`
 	TOTPEnabled     bool      `json:"totp_enabled"`
 	IsPlatformAdmin bool      `json:"is_platform_admin"`
 }
@@ -134,6 +140,9 @@ type MeTenant struct {
 	Timezone string          `json:"timezone"`
 	Currency string          `json:"currency"`
 	Features map[string]bool `json:"features"`
+	// Fase 6: estado de la suscripcion y solo lectura.
+	BillingStatus string `json:"billing_status" enum:"trialing,active,past_due,suspended,cancelled"`
+	ReadOnly      bool   `json:"read_only" doc:"true: la empresa solo puede leer hasta ponerse al día (402 en escrituras)."`
 }
 
 // MeRole es el rol en la empresa activa.
@@ -204,4 +213,10 @@ func normalizeEmail(raw string) (string, error) {
 		return "", ErrInvalidEmail
 	}
 	return local + "@" + strings.ToLower(domain), nil
+}
+
+// NormalizeEmail valida un correo simple y pone su dominio en minusculas
+// (alta de empresa con administrador).
+func NormalizeEmail(raw string) (string, error) {
+	return normalizeEmail(raw)
 }

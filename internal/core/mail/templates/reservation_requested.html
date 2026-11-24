@@ -1,0 +1,8 @@
+{{define "preheader"}}{{.Guest}} pidió {{.Property}} del {{.Range}}.{{end}}
+{{define "content"}}
+<h1 style="margin:0 0 12px;font-size:22px;line-height:30px;color:#003841;">Llegó una reserva desde tu sitio web</h1>
+<p style="margin:0 0 12px;font-size:15px;line-height:24px;">Hola {{.Name}}, <strong>{{.Guest}}</strong> pidió <strong>{{.Property}}</strong> del {{.Range}} ({{.Nights}}).</p>
+<p style="margin:0 0 12px;font-size:15px;line-height:24px;">Quedó como <strong>por confirmar</strong> con el código {{.Code}}. Revísala y confírmala para que el huésped reciba su correo.</p>
+<p style="margin:0;font-size:14px;line-height:22px;">Ábrela en ARGOS: {{.Link}}</p>
+<p style="margin:16px 0 0;font-size:13px;line-height:20px;color:#7d7d72;">Entró con la clave API «{{.KeyName}}».</p>
+{{end}}

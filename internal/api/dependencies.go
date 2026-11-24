@@ -10,6 +10,7 @@ import (
 
 	"github.com/smorareqs/argos-service/internal/core/apperr"
 	"github.com/smorareqs/argos-service/internal/core/database"
+	"github.com/smorareqs/argos-service/internal/core/reqctx"
 	"github.com/smorareqs/argos-service/internal/modules/auth"
 	"github.com/smorareqs/argos-service/internal/modules/authz"
 )
@@ -30,24 +31,23 @@ func CurrentPrincipal(ctx context.Context) (auth.Principal, bool) {
 	return p, ok
 }
 
-type clientIPKey struct{}
-
-// WithClientIP guarda en el contexto la IP de origen de la peticion. Se usa
-// para el bloqueo por intentos fallidos y para registrar sesiones.
+// WithClientIP guarda en el contexto la IP de origen y el agente de usuario
+// de la peticion. Se usan para el bloqueo por intentos fallidos, las sesiones
+// y la bitacora.
 func WithClientIP(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		host, _, err := net.SplitHostPort(r.RemoteAddr)
 		if err != nil {
 			host = r.RemoteAddr
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), clientIPKey{}, host)))
+		ctx := reqctx.WithClient(r.Context(), host, r.UserAgent())
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 // ClientIP devuelve la IP de origen (vacia si no se conoce).
 func ClientIP(ctx context.Context) string {
-	ip, _ := ctx.Value(clientIPKey{}).(string)
-	return ip
+	return reqctx.IP(ctx)
 }
 
 // Guard produce los middlewares de autenticacion y autorizacion.
@@ -74,6 +74,49 @@ func (g *Guard) RequirePermission(perms ...authz.Permission) huma.Middlewares {
 	return huma.Middlewares{g.authenticate, g.require(func(p auth.Principal) bool { return p.Can(perms...) })}
 }
 
+// RequireAnyPermission exige un access token valido y al menos uno de los
+// permisos indicados en la empresa activa (403 si no tiene ninguno).
+func (g *Guard) RequireAnyPermission(perms ...authz.Permission) huma.Middlewares {
+	return huma.Middlewares{g.authenticate, g.require(func(p auth.Principal) bool {
+		for _, perm := range perms {
+			if p.Can(perm) {
+				return true
+			}
+		}
+		return false
+	})}
+}
+
+// RequireFeature agrega a mw la exigencia de una bandera de la empresa
+// (reservations, parking...): sin ella responde 403 aunque haya permiso.
+func (g *Guard) RequireFeature(feature authz.Feature, mw huma.Middlewares) huma.Middlewares {
+	out := append(huma.Middlewares{}, mw...)
+	return append(out, func(hctx huma.Context, next func(huma.Context)) {
+		p, ok := CurrentPrincipal(hctx.Context())
+		if !ok || p.Membership == nil || !p.Membership.TenantFeatures[string(feature)] {
+			_ = huma.WriteErr(g.api, hctx, http.StatusForbidden, "Este módulo no está activo en tu empresa.")
+			return
+		}
+		next(hctx)
+	})
+}
+
+// RequireTenant exige una sesion dentro de una empresa (no en modo
+// plataforma), sin un permiso concreto. Lo usan los endpoints cuyo permiso
+// depende del recurso (p. ej. archivos).
+func (g *Guard) RequireTenant() huma.Middlewares {
+	return huma.Middlewares{g.authenticate, g.require(func(p auth.Principal) bool { return p.Membership != nil })}
+}
+
+// MustPrincipal devuelve el principal que dejo Guard (401 si falta).
+func MustPrincipal(ctx context.Context) (auth.Principal, error) {
+	p, ok := CurrentPrincipal(ctx)
+	if !ok {
+		return auth.Principal{}, HTTPError(ctx, apperr.New(apperr.KindAuthentication, ""))
+	}
+	return p, nil
+}
+
 // RequirePlatformAdmin exige un usuario administrador de la plataforma ARGOS.
 func (g *Guard) RequirePlatformAdmin() huma.Middlewares {
 	return huma.Middlewares{g.authenticate, g.require(func(p auth.Principal) bool { return p.User.IsPlatformAdmin })}
@@ -90,6 +133,16 @@ func (g *Guard) authenticate(hctx huma.Context, next func(huma.Context)) {
 	if err != nil {
 		g.writeError(hctx, err)
 		return
+	}
+	if m := principal.Membership; m != nil && m.ReadOnly() && writes(hctx.Method()) && !billingPath(hctx.Operation().Path) {
+		_ = huma.WriteErr(g.api, hctx, http.StatusPaymentRequired, readOnlyMessage(m.TenantBillingStatus))
+		return
+	}
+	if t := reqctx.TraceOf(ctx); t != nil {
+		t.UserID = principal.User.ID.String()
+		if principal.Membership != nil {
+			t.TenantID = principal.Membership.TenantID.String()
+		}
 	}
 	ctx = context.WithValue(ctx, principalKey{}, principal)
 	if principal.Membership != nil {
@@ -130,4 +183,27 @@ func bearerToken(header string) (string, bool) {
 		return "", false
 	}
 	return strings.TrimSpace(token), true
+}
+
+// writes indica un metodo que cambia datos.
+func writes(method string) bool {
+	return method != http.MethodGet && method != http.MethodHead && method != http.MethodOptions
+}
+
+// billingPath son las rutas que una empresa en solo lectura sigue usando:
+// facturacion (para pagar) y su cuenta y sesion.
+func billingPath(path string) bool {
+	for _, p := range []string{"/api/v1/billing", "/api/v1/auth/"} {
+		if strings.HasPrefix(path, p) {
+			return true
+		}
+	}
+	return false
+}
+
+func readOnlyMessage(status string) string {
+	if status == "cancelled" {
+		return "La suscripción de tu empresa terminó: solo puedes consultar. Elige un plan en Configuración › Facturación para volver a operar."
+	}
+	return "Tu empresa está en solo lectura por un pago pendiente. Paga en Configuración › Facturación y todo vuelve a funcionar al momento."
 }

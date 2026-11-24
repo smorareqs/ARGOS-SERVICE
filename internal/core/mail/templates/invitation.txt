@@ -1,0 +1,9 @@
+{{define "subject"}}{{.InviterName}} te invitó a {{.TenantName}} en ARGOS{{end}}
+{{define "text"}}{{.InviterName}} te invitó a unirte a {{.TenantName}} en ARGOS como {{.RoleName}}.
+{{if .Message}}
+"{{.Message}}"
+{{end}}
+Acepta la invitación para crear tu contraseña y entrar (vence el {{.ExpiresOn}}):
+{{.Link}}
+
+Si no esperabas esta invitación, ignora este correo.{{end}}

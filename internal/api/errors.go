@@ -27,6 +27,7 @@ var kindStatus = map[apperr.Kind]int{
 
 	apperr.KindPreconditionRequired: http.StatusPreconditionRequired,
 	apperr.KindTooManyRequests:      http.StatusTooManyRequests,
+	apperr.KindPaymentRequired:      http.StatusPaymentRequired,
 }
 
 // HTTPError traduce un error devuelto por un servicio a un error HTTP.
@@ -36,8 +37,12 @@ var kindStatus = map[apperr.Kind]int{
 // detalles internos (SQL, rutas, etc.).
 func HTTPError(ctx context.Context, err error) huma.StatusError {
 	status, message := classify(ctx, err)
-	statusErr := huma.NewError(status, message)
 	var domainErr *apperr.Error
+	var details []error
+	if errors.As(err, &domainErr) && domainErr.Field != "" {
+		details = append(details, &huma.ErrorDetail{Location: domainErr.Field, Message: message})
+	}
+	statusErr := huma.NewError(status, message, details...)
 	if errors.As(err, &domainErr) && domainErr.RetryAfter > 0 {
 		seconds := int(math.Ceil(domainErr.RetryAfter.Seconds()))
 		return &errorWithHeaders{

@@ -21,3 +21,24 @@ var (
 	ErrInvalidDevice       = apperr.New(apperr.KindValidation, "Los datos del dispositivo no son válidos.")
 	ErrInvalidSelection    = apperr.New(apperr.KindValidation, "Envía selection_token y device, o refresh_token.")
 )
+
+// Errores de cuenta, sesiones, contrasenas, 2FA e invitaciones. En endpoints
+// autenticados nunca se usa KindAuthentication para un dato incorrecto: 401
+// significa "token vencido" y el cliente cerraria la sesion.
+var (
+	ErrSessionNotFound    = apperr.New(apperr.KindNotFound, "Esa sesión ya no existe.")
+	ErrWrongPassword      = apperr.New(apperr.KindValidation, "La contraseña actual no es correcta.")
+	ErrResetLinkInvalid   = apperr.New(apperr.KindNotFound, "El enlace para restablecer la contraseña venció o ya se usó. Pide uno nuevo.")
+	ErrTOTPAlreadyEnabled = apperr.New(apperr.KindValidation, "La verificación en dos pasos ya está activa.")
+	ErrTOTPNotSetup       = apperr.New(apperr.KindValidation, "Primero genera el código QR para activar la verificación en dos pasos.")
+	ErrTOTPNotEnabled     = apperr.New(apperr.KindValidation, "La verificación en dos pasos no está activa.")
+	ErrTOTPCodeIncorrect  = apperr.New(apperr.KindValidation, "El código no es correcto. Revisa que la hora de tu teléfono esté bien y escribe el código vigente.")
+	ErrInvitationInvalid  = apperr.New(apperr.KindNotFound, "La invitación venció, ya se usó o fue cancelada. Pide una nueva a quien te invitó.")
+	ErrInvitationNotFound = apperr.New(apperr.KindNotFound, "Esa invitación ya no existe.")
+	ErrAlreadyMember      = apperr.New(apperr.KindValidation, "Esa persona ya es parte de la empresa.")
+	ErrAlreadyInvited     = apperr.New(apperr.KindValidation, "Ya hay una invitación pendiente para ese correo. Puedes reenviarla.")
+	ErrInvitationRole     = apperr.New(apperr.KindValidation, "Elige un rol de la empresa.")
+	ErrInvitationMessage  = apperr.New(apperr.KindValidation, "El mensaje no puede pasar de 500 caracteres.")
+	ErrInvitationAccepted = apperr.New(apperr.KindValidation, "Esa invitación ya fue aceptada.")
+	ErrPlatformNotAllowed = apperr.New(apperr.KindNotFound, "No tienes acceso a la administración de ARGOS.")
+)

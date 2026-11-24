@@ -1,0 +1,4 @@
+{{define "subject"}}Reserva {{.Code}} cancelada · {{.PropertyName}}{{end}}
+{{define "text"}}Hola {{.GuestName}}, cancelamos tu reserva en {{.PropertyName}} del {{.CheckIn}} al {{.CheckOut}} (código {{.Code}}).
+
+Si no la cancelaste tú o quieres reservar otras fechas, responde a este correo y {{.TenantName}} te ayuda.{{end}}

@@ -42,6 +42,8 @@ func TestLoadRequiresSecrets(t *testing.T) {
 func TestLoadParsesValues(t *testing.T) {
 	setRequired(t)
 	t.Setenv("ARGOS_ENVIRONMENT", "production")
+	t.Setenv("ARGOS_FIELD_ENCRYPTION_KEY", "clave-de-prueba")
+	t.Setenv("ARGOS_S3_BUCKET", "argos-prod")
 	t.Setenv("ARGOS_CORS_ORIGINS", "https://a.example,https://b.example")
 	t.Setenv("ARGOS_POSTGRES_PORT", "5433")
 	cfg, err := Load()
@@ -70,5 +72,22 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 				t.Errorf("%s=%s deberia fallar", env[0], env[1])
 			}
 		})
+	}
+}
+
+func TestProductionRequiresStorageAndFieldKey(t *testing.T) {
+	setRequired(t)
+	t.Setenv("ARGOS_ENVIRONMENT", "production")
+	if _, err := Load(); err == nil {
+		t.Error("produccion sin ARGOS_FIELD_ENCRYPTION_KEY ni ARGOS_S3_BUCKET deberia fallar")
+	}
+}
+
+func TestMailDriverDefaults(t *testing.T) {
+	if got := (Config{Environment: Local}).Mail(); got != MailLog {
+		t.Errorf("local: %s", got)
+	}
+	if got := (Config{Environment: Production}).Mail(); got != MailSES {
+		t.Errorf("produccion: %s", got)
 	}
 }

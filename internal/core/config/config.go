@@ -56,6 +56,70 @@ type Config struct {
 
 	// --- CORS --- Lista separada por comas; "*" admite cualquier origen.
 	CORSOrigins []string `env:"CORS_ORIGINS" envDefault:"*" envSeparator:","`
+
+	// --- Cifrado de campos (AES-256-GCM): secreto TOTP y, en fase 2, accesos ---
+	// 32 bytes en base64. En local y testing, si falta, se deriva de SECRET_KEY.
+	FieldEncryptionKey string `env:"FIELD_ENCRYPTION_KEY"`
+
+	// --- Enlaces en correos ---
+	WebBaseURL string `env:"WEB_BASE_URL" envDefault:"http://localhost:4200"`
+
+	// --- AWS (S3 y SES). Credenciales por la cadena estandar del SDK, salvo
+	// el emulador local, que usa S3AccessKey y S3SecretKey. ---
+	AWSRegion string `env:"AWS_REGION" envDefault:"us-east-1"`
+	S3Bucket  string `env:"S3_BUCKET"`
+	// S3EndpointURL solo en local (emulador S3); vacio usa AWS.
+	S3EndpointURL string `env:"S3_ENDPOINT_URL"`
+	// S3PublicEndpointURL es el host con el que se firman las URLs que abre el
+	// navegador: en local el emulador se ve como localhost fuera de Docker.
+	S3PublicEndpointURL string `env:"S3_PUBLIC_ENDPOINT_URL"`
+	S3AccessKey         string `env:"S3_ACCESS_KEY"`
+	S3SecretKey         string `env:"S3_SECRET_KEY"`
+
+	// --- Correo ---
+	// MailDriver: "log" escribe cada correo en el log y en MailDir (local y
+	// testing); "ses" lo envia por Amazon SES.
+	MailDriver string `env:"MAIL_DRIVER"`
+	MailDir    string `env:"MAIL_DIR" envDefault:"tmp/mail"`
+	SESFrom    string `env:"SES_FROM" envDefault:"ARGOS <no-reply@argos.gt>"`
+
+	// --- Cola de trabajos ---
+	WorkerConcurrency int `env:"WORKER_CONCURRENCY" envDefault:"4"`
+
+	// --- Fase 6: limites y facturacion ---
+	// Peticiones por IP y minuto en acceso (login, clave, refresh) y en las
+	// rutas publicas, y por clave API y minuto en POST /public/reservations.
+	// 0 = sin limite.
+	RateLimitAuth   int `env:"RATE_LIMIT_AUTH" envDefault:"60"`
+	RateLimitPublic int `env:"RATE_LIMIT_PUBLIC" envDefault:"300"`
+	RateLimitAPIKey int `env:"RATE_LIMIT_API_KEY" envDefault:"60"`
+	// Pasarela de pago: fake (simulada) hasta elegir proveedor (avance.md).
+	BillingProvider string `env:"BILLING_PROVIDER" envDefault:"fake"`
+	// Secreto HMAC de los webhooks de la pasarela; vacio = derivado de SECRET_KEY.
+	BillingWebhookSecret string `env:"BILLING_WEBHOOK_SECRET"`
+}
+
+// Drivers de correo.
+const (
+	MailLog = "log"
+	MailSES = "ses"
+)
+
+// Mail devuelve el driver de correo efectivo: el configurado o, si falta, log
+// en local y testing y ses en el resto.
+func (c Config) Mail() string {
+	if c.MailDriver != "" {
+		return c.MailDriver
+	}
+	if c.IsDevelopment() {
+		return MailLog
+	}
+	return MailSES
+}
+
+// IsDevelopment indica si corre en local o en pruebas.
+func (c Config) IsDevelopment() bool {
+	return c.Environment == Local || c.Environment == Testing
 }
 
 var supportedJWTAlgorithms = []string{"HS256", "HS384", "HS512"}
@@ -89,6 +153,17 @@ func (c Config) validate() error {
 	}
 	if c.DBMaxConns <= 0 {
 		return errors.New("ARGOS_DB_MAX_CONNS debe ser positivo")
+	}
+	if c.WorkerConcurrency <= 0 {
+		return errors.New("ARGOS_WORKER_CONCURRENCY debe ser positivo")
+	}
+	switch c.MailDriver {
+	case "", MailLog, MailSES:
+	default:
+		return fmt.Errorf("ARGOS_MAIL_DRIVER invalido: %q (log o ses)", c.MailDriver)
+	}
+	if !c.IsDevelopment() && (c.FieldEncryptionKey == "" || c.S3Bucket == "") {
+		return errors.New("ARGOS_FIELD_ENCRYPTION_KEY y ARGOS_S3_BUCKET son obligatorias fuera de local y testing")
 	}
 	return nil
 }

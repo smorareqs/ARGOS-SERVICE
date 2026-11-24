@@ -30,6 +30,7 @@ func serve(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	app.EnsureLocalBucket(ctx, cfg, log)
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.HTTPPort),

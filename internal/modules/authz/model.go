@@ -16,6 +16,7 @@ type Role struct {
 	Name               string    `db:"name"`
 	Description        *string   `db:"description"`
 	IsSystem           bool      `db:"is_system"`
+	Scoped             bool      `db:"scoped"`
 	PermissionsVersion int       `db:"permissions_version"`
 	CreatedAt          time.Time `db:"created_at"`
 	UpdatedAt          time.Time `db:"updated_at"`
@@ -47,20 +48,29 @@ type Membership struct {
 // MembershipView es una membresia con los datos de su tenant y su rol, lo que
 // necesitan el login y la resolucion del usuario autenticado.
 type MembershipView struct {
-	MembershipID       uuid.UUID        `db:"membership_id"`
-	Status             MembershipStatus `db:"status"`
-	TenantID           uuid.UUID        `db:"tenant_id"`
-	TenantName         string           `db:"tenant_name"`
-	TenantLogoKey      *string          `db:"tenant_logo_key"`
-	TenantSchema       string           `db:"tenant_schema"`
-	TenantActive       bool             `db:"tenant_active"`
-	TenantTimezone     string           `db:"tenant_timezone"`
-	TenantCurrency     string           `db:"tenant_currency"`
-	TenantFeatures     map[string]bool  `db:"tenant_features"`
-	RoleID             uuid.UUID        `db:"role_id"`
-	RoleKey            RoleKey          `db:"role_key"`
-	RoleName           string           `db:"role_name"`
-	PermissionsVersion int              `db:"permissions_version"`
+	MembershipID   uuid.UUID        `db:"membership_id"`
+	Status         MembershipStatus `db:"status"`
+	TenantID       uuid.UUID        `db:"tenant_id"`
+	TenantName     string           `db:"tenant_name"`
+	TenantLogoKey  *string          `db:"tenant_logo_key"`
+	TenantSchema   string           `db:"tenant_schema"`
+	TenantActive   bool             `db:"tenant_active"`
+	TenantTimezone string           `db:"tenant_timezone"`
+	TenantCurrency string           `db:"tenant_currency"`
+	TenantFeatures map[string]bool  `db:"tenant_features"`
+	// TenantBillingStatus es el estado de la suscripcion (fase 6).
+	TenantBillingStatus string    `db:"tenant_billing_status"`
+	RoleID              uuid.UUID `db:"role_id"`
+	RoleKey             RoleKey   `db:"role_key"`
+	RoleName            string    `db:"role_name"`
+	RoleScoped          bool      `db:"role_scoped"`
+	PermissionsVersion  int       `db:"permissions_version"`
+}
+
+// ReadOnly indica si la empresa solo puede leer: suscripcion suspendida o
+// cancelada (fase06.md §3.2). Toda escritura responde 402 salvo facturacion.
+func (m MembershipView) ReadOnly() bool {
+	return m.TenantBillingStatus == "suspended" || m.TenantBillingStatus == "cancelled"
 }
 
 // Usable indica si la membresia permite entrar: activa y con el tenant activo.

@@ -1,0 +1,8 @@
+{{define "subject"}}{{.Title}} · {{.TenantName}}{{end}}
+{{define "text"}}Hola {{.Name}}, {{.Summary}}
+{{range .Lines}}
+{{.}}{{end}}
+
+Revisa el plan y las facturas de {{.TenantName}} en ARGOS, en Configuración › Facturación: {{.Link}}
+
+Recibes este correo porque administras la facturación de {{.TenantName}}.{{end}}

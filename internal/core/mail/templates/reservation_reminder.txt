@@ -1,0 +1,11 @@
+{{define "subject"}}Mañana te esperamos · {{.PropertyName}}{{end}}
+{{define "text"}}Hola {{.GuestName}}, tu estancia en {{.Place}} empieza mañana.
+
+Código: {{.Code}}
+Llegada: {{.CheckIn}}, desde las {{.CheckInTime}}
+Salida: {{.CheckOut}}, antes de las {{.CheckOutTime}}
+{{if .Instructions}}
+Para tu llegada:
+{{.Instructions}}
+{{end}}
+Si tu hora de llegada cambia, responde a este correo.{{end}}

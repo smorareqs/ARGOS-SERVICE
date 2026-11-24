@@ -1,0 +1,8 @@
+{{define "subject"}}Tu boleta de {{.Period}} está lista{{end}}
+{{define "text"}}Hola {{.Name}}, {{.TenantName}} cerró la nómina de {{.Period}} ({{.Range}}).
+
+Líquido a recibir: {{.Net}}.
+
+Puedes ver y descargar la boleta completa en la app ARGOS, en Mis boletas.
+
+Si algo no cuadra, habla con recursos humanos de {{.TenantName}}.{{end}}

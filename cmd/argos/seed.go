@@ -83,7 +83,7 @@ type demoMember struct {
 // (WEB/src/app/core/mocks/demo-seed.ts), ahora como datos reales.
 var (
 	demoTenants = []demoTenant{
-		{slug: "garrent", name: "Garrent", features: map[string]bool{"reservations": true, "shared_areas": true}},
+		{slug: "garrent", name: "Garrent", features: map[string]bool{"reservations": true, "shared_areas": true, "payroll": true, "guest_chat": true}},
 		{slug: "costa_limpia", name: "Costa Limpia", features: map[string]bool{"reservations": true, "parking": true}},
 	}
 	demoMembers = []demoMember{
@@ -93,6 +93,12 @@ var (
 		{"luis.torres@garrent.gt", "Luis Torres", map[string]authz.RoleKey{"garrent": authz.RoleMaintenance}},
 		{"sofia.mendez@garrent.gt", "Sofía Méndez", map[string]authz.RoleKey{"garrent": authz.RoleSecurity}},
 		{"ricardo.castillo@garrent.gt", "Ricardo Castillo", map[string]authz.RoleKey{"garrent": authz.RoleOwner}},
+		// Fase 2: para que el alcance por propiedades se vea con mas de una
+		// persona por rol.
+		{"diego.castillo@garrent.gt", "Diego Castillo", map[string]authz.RoleKey{"garrent": authz.RoleMaintenance}},
+		{"isabel.monzon@garrent.gt", "Isabel Monzón", map[string]authz.RoleKey{"garrent": authz.RoleOwner}},
+		{"pedro.aju@costalimpia.gt", "Pedro Ajú", map[string]authz.RoleKey{"costa_limpia": authz.RoleCleaner}},
+		{"rosa.xol@costalimpia.gt", "Rosa Xol", map[string]authz.RoleKey{"costa_limpia": authz.RoleCleaner}},
 		{"carlos.ruiz@argos.gt", "Carlos Ruiz", map[string]authz.RoleKey{
 			"garrent": authz.RoleSupervisor, "costa_limpia": authz.RoleAdmin,
 		}},
@@ -134,14 +140,52 @@ func seedDemoTenant(ctx context.Context) error {
 			return err
 		}
 	}
+	if err := seedPhases(ctx, services, db, ids); err != nil {
+		return err
+	}
 	fmt.Printf("Empresas de demostracion listas: %d empresas, %d personas.\n", len(demoTenants), len(demoMembers))
 
-	if dev, devPassword, ok := devMember(); ok {
-		if err := seedMember(ctx, services, db, ids, dev, devPassword); err != nil {
+	return seedDevAccount(ctx, services, db, ids)
+}
+
+// seedPhases siembra los datos de cada fase, en orden (cada una usa lo de la
+// anterior: propiedades -> activos -> reservas).
+func seedPhases(ctx context.Context, services app.Services, db *database.DB, ids map[string]tenants.Tenant) error {
+	steps := []func() error{
+		func() error { return seedOperations(ctx, services, ids) },
+		func() error { return seedMaintenance(ctx, services, db, ids) },
+		func() error { return seedReservations(ctx, services, db, ids) },
+		func() error { return seedHR(ctx, services, ids) },
+		func() error { return seedBilling(ctx, db, ids) },
+		func() error { return seedInvitations(ctx, services, db, ids) },
+	}
+	for _, step := range steps {
+		if err := step(); err != nil {
 			return err
 		}
-		fmt.Printf("Cuenta de desarrollo lista: %s (administrador en todas las empresas).\n", dev.email)
 	}
+	return nil
+}
+
+// seedDevAccount crea la cuenta personal de desarrollo (si esta en el .env):
+// administradora en todas las empresas y de la plataforma, para probar el
+// alta de empresas.
+func seedDevAccount(ctx context.Context, services app.Services, db *database.DB, ids map[string]tenants.Tenant) error {
+	dev, devPassword, ok := devMember()
+	if !ok {
+		return nil
+	}
+	if err := seedMember(ctx, services, db, ids, dev, devPassword); err != nil {
+		return err
+	}
+	user, err := services.Auth.UserByEmail(ctx, dev.email)
+	if err != nil {
+		return err
+	}
+	if err := services.Auth.SetPlatformAdmin(ctx, user.ID, true); err != nil {
+		return err
+	}
+	fmt.Printf("Cuenta de desarrollo lista: %s (rol de administracion en todas las empresas y en la plataforma).\n", dev.email)
 	return nil
 }
 
@@ -214,4 +258,40 @@ func newServices(ctx context.Context) (app.Services, func(), error) {
 		return app.Services{}, nil, err
 	}
 	return services, db.Close, nil
+}
+
+// demoInvitations son invitaciones pendientes para ver el flujo completo (el
+// correo queda en tmp/mail con el enlace para aceptarla).
+var demoInvitations = []struct {
+	tenant, inviter, email string
+	role                   authz.RoleKey
+	message                string
+}{
+	{
+		"garrent", "ana.lopez@garrent.gt", "andrea.soto@garrent.gt", authz.RoleCleaner,
+		"Bienvenida al equipo de limpieza. Empiezas el lunes en Torre Vista.",
+	},
+}
+
+func seedInvitations(ctx context.Context, services app.Services, db *database.DB, ids map[string]tenants.Tenant) error {
+	for _, inv := range demoInvitations {
+		inviter, err := services.Auth.UserByEmail(ctx, inv.inviter)
+		if err != nil {
+			return err
+		}
+		err = db.InTx(ctx, func(q database.Querier) error {
+			_, err := services.Auth.InviteTx(ctx, q, auth.InviteInput{
+				TenantID: ids[inv.tenant].ID, Inviter: &inviter.ID, Email: inv.email, RoleKey: inv.role, Message: inv.message,
+			})
+			return err
+		})
+		// Idempotente: si ya esta invitada o ya acepto, no se toca.
+		if errors.Is(err, auth.ErrAlreadyInvited) || errors.Is(err, auth.ErrAlreadyMember) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("invitacion de %s: %w", inv.email, err)
+		}
+	}
+	return nil
 }

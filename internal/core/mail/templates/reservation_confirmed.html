@@ -1,0 +1,10 @@
+{{define "preheader"}}Tu reserva {{.Code}} en {{.PropertyName}} está confirmada.{{end}}
+{{define "content"}}
+<h1 style="margin:0 0 12px;font-size:22px;line-height:30px;color:#003841;">Tu reserva está confirmada</h1>
+<p style="margin:0 0 16px;font-size:15px;line-height:24px;">Hola {{.GuestName}}, te esperamos en <strong>{{.Place}}</strong>.</p>
+{{template "stay" .}}
+{{if .Instructions}}<h2 style="margin:20px 0 8px;font-size:16px;line-height:24px;color:#003841;">Antes de llegar</h2>
+<p style="margin:0;font-size:14px;line-height:22px;white-space:pre-line;">{{.Instructions}}</p>{{end}}
+{{if .AppCode}}<p style="margin:20px 0 0;padding:12px 14px;background:#f4f1ea;border-radius:8px;font-size:14px;line-height:22px;">En la app ARGOS ves tu reserva, reservas áreas comunes y nos escribes. Entra con tu correo y el código <strong style="letter-spacing:1px;">{{.AppCode}}</strong>.</p>{{end}}
+<p style="margin:16px 0 0;font-size:13px;line-height:20px;color:#7d7d72;">¿Necesitas cambiar algo? Responde a este correo y {{.TenantName}} te ayuda.</p>
+{{end}}

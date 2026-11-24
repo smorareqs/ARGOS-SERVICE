@@ -14,7 +14,8 @@ const selectMembershipView = `SELECT m.id AS membership_id, m.status,
        t.id AS tenant_id, t.name AS tenant_name, t.logo_key AS tenant_logo_key,
        t.schema_name AS tenant_schema, t.is_active AS tenant_active,
        t.timezone AS tenant_timezone, t.currency AS tenant_currency, t.features AS tenant_features,
-       r.id AS role_id, r.key AS role_key, r.name AS role_name, r.permissions_version
+       coalesce((SELECT s.status FROM shared.subscriptions s WHERE s.tenant_id = t.id), 'active') AS tenant_billing_status,
+       r.id AS role_id, r.key AS role_key, r.name AS role_name, r.scoped AS role_scoped, r.permissions_version
 FROM shared.memberships m
 JOIN shared.tenants t ON t.id = m.tenant_id
 JOIN shared.roles r ON r.id = m.role_id`
@@ -32,14 +33,14 @@ func NewRepository(q database.Querier) *Repository {
 
 // UpsertSystemRole crea el rol de sistema o actualiza su nombre, y devuelve la
 // fila resultante.
-func (r *Repository) UpsertSystemRole(ctx context.Context, tenantID uuid.UUID, key RoleKey, name string) (Role, error) {
+func (r *Repository) UpsertSystemRole(ctx context.Context, tenantID uuid.UUID, def SystemRole) (Role, error) {
 	rows, err := r.q.Query(ctx, `
-		INSERT INTO shared.roles (tenant_id, key, name, is_system)
-		VALUES ($1, $2, $3, true)
-		ON CONFLICT (tenant_id, key) DO UPDATE SET name = EXCLUDED.name, is_system = true
-		RETURNING id, tenant_id, key, name, description, is_system, permissions_version,
+		INSERT INTO shared.roles (tenant_id, key, name, is_system, scoped)
+		VALUES ($1, $2, $3, true, $4)
+		ON CONFLICT (tenant_id, key) DO UPDATE SET name = EXCLUDED.name, is_system = true, scoped = EXCLUDED.scoped
+		RETURNING id, tenant_id, key, name, description, is_system, scoped, permissions_version,
 		          created_at, updated_at`,
-		tenantID, key, name,
+		tenantID, def.Key, def.Name, def.Scoped,
 	)
 	if err != nil {
 		return Role{}, err
@@ -50,7 +51,7 @@ func (r *Repository) UpsertSystemRole(ctx context.Context, tenantID uuid.UUID, k
 // RoleByKey devuelve el rol del tenant con esa clave o nil.
 func (r *Repository) RoleByKey(ctx context.Context, tenantID uuid.UUID, key RoleKey) (*Role, error) {
 	rows, err := r.q.Query(ctx, `
-		SELECT id, tenant_id, key, name, description, is_system, permissions_version, created_at, updated_at
+		SELECT id, tenant_id, key, name, description, is_system, scoped, permissions_version, created_at, updated_at
 		FROM shared.roles WHERE tenant_id = $1 AND key = $2`, tenantID, key)
 	if err != nil {
 		return nil, err
