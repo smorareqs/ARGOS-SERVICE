@@ -24,6 +24,9 @@ x-argos-env: &argos-env
   ARGOS_S3_SECRET_KEY: ${ARGOS_S3_SECRET_KEY:?define ARGOS_S3_SECRET_KEY en .env}
   # Los correos no se envian: quedan en el log del worker y en tmp/mail/*.html.
   ARGOS_MAIL_DRIVER: log
+  # Mapa real del Inicio (Google Maps 3D). Opcional: sin clave, mapa ilustrado.
+  ARGOS_GOOGLE_MAPS_KEY: ${ARGOS_GOOGLE_MAPS_KEY:-}
+  ARGOS_GOOGLE_MAPS_MAP_ID: ${ARGOS_GOOGLE_MAPS_MAP_ID:-}
 
 x-argos-dev: &argos-dev
   build:

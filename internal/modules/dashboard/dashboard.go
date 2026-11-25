@@ -62,6 +62,8 @@ type Pin struct {
 	ID          uuid.UUID `db:"id" json:"id" format:"uuid"`
 	Code        string    `db:"code" json:"code"`
 	Name        string    `db:"name" json:"name"`
+	Type        string    `db:"type" json:"type" enum:"apartment,house,room,other" doc:"Tipo de propiedad (icono del pin)."`
+	Building    *string   `db:"building" json:"building" nullable:"true" doc:"Nombre del edificio, si pertenece a uno."`
 	Zone        *string   `db:"zone" json:"zone" nullable:"true"`
 	Lat         *float64  `db:"lat" json:"lat" nullable:"true" doc:"La de la propiedad o la de su edificio."`
 	Lng         *float64  `db:"lng" json:"lng" nullable:"true"`
@@ -215,7 +217,7 @@ func (s *Service) fillReservations(ctx context.Context, q database.Querier, acto
 func pins(ctx context.Context, q database.Querier, scope authz.PropertyScope, status map[uuid.UUID]string, occupied map[uuid.UUID]bool) ([]Pin, error) {
 	all, ids := scope.SQLArgs()
 	rows, err := q.Query(ctx, `
-		SELECT p.id, p.code, p.name, coalesce(p.zone, b.zone) AS zone,
+		SELECT p.id, p.code, p.name, p.type, b.name AS building, coalesce(p.zone, b.zone) AS zone,
 		       coalesce(p.lat, b.lat)::float8 AS lat, coalesce(p.lng, b.lng)::float8 AS lng,
 		       (SELECT count(*)::int FROM maintenance_tickets t
 		         WHERE t.property_id = p.id AND t.status IN ('open', 'assigned', 'in_progress')) AS open_tickets

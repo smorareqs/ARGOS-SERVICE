@@ -40,4 +40,5 @@ func Register(humaAPI huma.API, svc app.Services) {
 	registerBilling(v1, svc.Billing, guard)
 	registerAPIKeys(v1, svc.APIKeys, guard)
 	registerPublic(v1, svc.APIKeys, svc.Reservations, svc.Billing, svc.APIKeyLimiter)
+	registerClientConfig(v1, svc.Client, guard)
 }

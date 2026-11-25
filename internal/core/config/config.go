@@ -97,6 +97,10 @@ type Config struct {
 	BillingProvider string `env:"BILLING_PROVIDER" envDefault:"fake"`
 	// Secreto HMAC de los webhooks de la pasarela; vacio = derivado de SECRET_KEY.
 	BillingWebhookSecret string `env:"BILLING_WEBHOOK_SECRET"`
+	// Mapa real de la web (Google Maps, mapa 3D fotorrealista). Clave de
+	// navegador restringida por dominio; vacia = la web usa el mapa ilustrado.
+	GoogleMapsKey   string `env:"GOOGLE_MAPS_KEY"`
+	GoogleMapsMapID string `env:"GOOGLE_MAPS_MAP_ID"`
 }
 
 // Drivers de correo.

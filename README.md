@@ -105,6 +105,8 @@ en despliegue las variables vienen del entorno y tienen prioridad sobre el `.env
 | `ARGOS_RATE_LIMIT_API_KEY`            | `60`        | Reservas por clave API y minuto          |
 | `ARGOS_BILLING_PROVIDER`              | `fake`      | Pasarela de pago (hoy solo la simulada)  |
 | `ARGOS_BILLING_WEBHOOK_SECRET`        | derivado de `SECRET_KEY` | Secreto HMAC de los webhooks de la pasarela |
+| `ARGOS_GOOGLE_MAPS_KEY`               | —           | Clave de navegador de Google Maps (mapa 3D del Inicio). Vacía = mapa ilustrado |
+| `ARGOS_GOOGLE_MAPS_MAP_ID`            | —           | Estilo de mapa de Google (opcional) |
 
 ## Puesta en marcha
 
@@ -230,6 +232,7 @@ huéspedes, depósitos e inspecciones). Resumen:
 | Facturación (fase 6) | `GET /billing/subscription`, `GET /billing/invoices`, `GET /billing/invoices/{id}/pdf`, `POST /billing/{checkout,cancel,resume}` |
 | Planes y suscripciones (plataforma) | `GET/POST /platform/plans`, `PATCH /platform/plans/{id}`, `GET /platform/subscriptions`, `POST /platform/subscriptions/{id}/reactivate`, `POST /platform/tenants/{id}/trial`, `GET /platform/tenants/{id}/invoices`, `GET /platform/invoices/{id}/pdf` |
 | Integraciones | `GET/POST /api-keys`, `POST /api-keys/{id}/revoke`; públicas: `POST /public/reservations` (`X-Api-Key`), `POST /public/billing/webhook/{provider}` |
+| Cliente web | `GET /client-config` (sesión iniciada): proveedor del mapa y su clave de navegador |
 | Salud | `GET /health`, `GET /health/ready` (BD, S3, migraciones y cola; 503 si no está lista) |
 
 (Todas bajo `/api/v1`.) El access token (15 min) lleva `tid` (empresa), `sid` (sesión) y

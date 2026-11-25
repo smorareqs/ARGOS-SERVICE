@@ -69,6 +69,14 @@ type Services struct {
 	Billing       *billing.Service
 	APIKeys       *apikeys.Service
 	APIKeyLimiter *ratelimit.Limiter
+	// Configuracion que necesita el cliente web (mapa real).
+	Client ClientConfig
+}
+
+// ClientConfig es lo que la web pide al iniciar sesion (GET /client-config).
+type ClientConfig struct {
+	MapsKey   string
+	MapsMapID string
 }
 
 // NewServices construye todos los servicios.
@@ -151,6 +159,7 @@ func NewServices(cfg config.Config, db *database.DB, log *slog.Logger) (Services
 		Billing:       bill,
 		APIKeys:       apikeys.NewService(db, log.With("module", "apikeys")),
 		APIKeyLimiter: ratelimit.PerMinute(cfg.RateLimitAPIKey),
+		Client:        ClientConfig{MapsKey: cfg.GoogleMapsKey, MapsMapID: cfg.GoogleMapsMapID},
 	}, nil
 }
 

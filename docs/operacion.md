@@ -52,6 +52,21 @@ suscripción en prueba (14 días en Completo si no se indica). Todo queda en la 
 * La pasarela se elige con `ARGOS_BILLING_PROVIDER` (hoy solo `fake`). Su webhook es
   `POST /api/v1/public/billing/webhook/{provider}` firmado con `ARGOS_BILLING_WEBHOOK_SECRET`.
 
+## 4.1 Mapa real del Inicio (Google Maps 3D)
+
+La web pide `GET /api/v1/client-config` al iniciar sesión. Si `ARGOS_GOOGLE_MAPS_KEY` tiene una
+clave, dibuja el mapa 3D fotorrealista de Google; si no (o si Google rechaza la clave), el mapa
+ilustrado. Para activarlo:
+
+1. En Google Cloud, en el proyecto de ARGOS: habilitar **Maps JavaScript API** y **Map Tiles API**
+   (los mapas 3D fotorrealistas la usan) y tener la facturación activa.
+2. Crear una clave de API, restringida a **sitios web** (`http://localhost:4200/*` en local y el
+   dominio del panel en producción) y a esas dos APIs.
+3. Ponerla en `ARGOS_GOOGLE_MAPS_KEY` (en local, `BACKEND/.env`) y reiniciar la API
+   (`docker compose up -d api` desde `WEB/`). `ARGOS_GOOGLE_MAPS_MAP_ID` es opcional.
+
+Es una clave de navegador: viaja al cliente, por eso la restricción por dominio es obligatoria.
+
 ## 5. Rotar claves y secretos
 
 | Secreto | Efecto de rotarlo | Cómo |
@@ -60,6 +75,7 @@ suscripción en prueba (14 días en Completo si no se indica). Todo queda en la 
 | `ARGOS_FIELD_ENCRYPTION_KEY` | Los datos cifrados (2FA, acceso a propiedades) dejan de leerse | **No rotar sin migrar**: descifrar con la anterior y cifrar con la nueva en una tarea controlada |
 | `ARGOS_BILLING_WEBHOOK_SECRET` | Los webhooks firmados con el anterior responden 401 | Cambiarlo a la vez en la pasarela y en la variable |
 | Claves de AWS | — | En AWS se usan roles IAM; no hay claves que rotar |
+| `ARGOS_GOOGLE_MAPS_KEY` | Hasta reiniciar, la web sigue con la anterior | Crear otra en Google Cloud con las mismas restricciones, cambiar la variable, reiniciar la API y borrar la vieja |
 | Claves API de empresas | La empresa revoca la vieja y crea otra en Configuración › Integraciones | La clave nueva se muestra una sola vez |
 
 ## 6. Respaldos y restauración

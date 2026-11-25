@@ -1205,6 +1205,14 @@ components:
         - redirect_url
         - overview
       type: object
+    ClientConfigRead:
+      additionalProperties: false
+      properties:
+        maps:
+          $ref: "#/components/schemas/MapsConfig"
+      required:
+        - maps
+      type: object
     Dashboard:
       additionalProperties: false
       properties:
@@ -3380,6 +3388,24 @@ components:
       required:
         - refresh_token
       type: object
+    MapsConfig:
+      additionalProperties: false
+      properties:
+        api_key:
+          description: Clave de navegador de Google Maps (restringida por dominio).
+          type: string
+        map_id:
+          description: Estilo de mapa de Google (opcional).
+          type: string
+        provider:
+          description: google si hay clave configurada; none = mapa ilustrado.
+          enum:
+            - google
+            - none
+          type: string
+      required:
+        - provider
+      type: object
     MeResponse:
       additionalProperties: false
       properties:
@@ -4650,6 +4676,11 @@ components:
     Pin:
       additionalProperties: false
       properties:
+        building:
+          description: Nombre del edificio, si pertenece a uno.
+          type:
+            - string
+            - "null"
         code:
           type: string
         id:
@@ -4681,6 +4712,14 @@ components:
             - occupied
             - ready
           type: string
+        type:
+          description: Tipo de propiedad (icono del pin).
+          enum:
+            - apartment
+            - house
+            - room
+            - other
+          type: string
         zone:
           type:
             - string
@@ -4689,6 +4728,8 @@ components:
         - id
         - code
         - name
+        - type
+        - building
         - zone
         - lat
         - lng
@@ -10055,6 +10096,28 @@ paths:
       summary: Editar la plantilla
       tags:
         - checklists
+  /api/v1/client-config:
+    get:
+      description: "Lo que la web necesita al iniciar sesión. Hoy: el proveedor del mapa del Inicio y su clave de navegador (ARGOS_GOOGLE_MAPS_KEY). Sin clave, provider = none y la web dibuja el mapa ilustrado."
+      operationId: client-config
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientConfigRead"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Configuración del cliente web
+      tags:
+        - sistema
   /api/v1/dashboard:
     get:
       description: "Agregado del dia (W-B1). Cada bloque respeta el alcance y viene vacio sin su permiso: alerts y top_alerts (alerts.read), incidents y upcoming (maintenance.read), activity (audit.read), pins (properties.read). tasks.available es false hasta que el modulo de tareas lo conecte."
