@@ -7675,6 +7675,9 @@ components:
             - app
             - manual
           type: string
+        user_id:
+          format: uuid
+          type: string
         worked_minutes:
           format: int64
           type:
@@ -7683,6 +7686,7 @@ components:
       required:
         - id
         - employee_id
+        - user_id
         - employee_name
         - date
         - clock_in_at
@@ -12411,6 +12415,40 @@ paths:
       security:
         - bearerAuth: []
       summary: Marcar salida
+      tags:
+        - asistencia
+  /api/v1/attendance/day:
+    get:
+      description: "Para el tablero del equipo (app C1): tambien con tasks.assign."
+      operationId: attendance-day
+      parameters:
+        - explode: false
+          in: query
+          name: date
+          required: true
+          schema:
+            format: date
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/RecordRead"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Quién marcó ese día
       tags:
         - asistencia
   /api/v1/attendance/me:

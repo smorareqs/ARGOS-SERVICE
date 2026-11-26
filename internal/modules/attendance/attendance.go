@@ -55,6 +55,7 @@ var (
 type RecordRead struct {
 	ID             uuid.UUID  `db:"id" json:"id" format:"uuid"`
 	EmployeeID     uuid.UUID  `db:"employee_id" json:"employee_id" format:"uuid"`
+	UserID         uuid.UUID  `db:"user_id" json:"user_id" format:"uuid"`
 	EmployeeName   string     `db:"employee_name" json:"employee_name"`
 	Date           string     `db:"date" json:"date" format:"date" doc:"Dia (hora de la empresa) en que empezo."`
 	ClockInAt      time.Time  `db:"clock_in_at" json:"clock_in_at"`
@@ -151,7 +152,7 @@ const tenantTZ = `coalesce((SELECT timezone FROM shared.tenants WHERE schema_nam
 // recordSelect lee el marcaje con el dia y las banderas del horario.
 const recordSelect = `
 	WITH tz AS (SELECT ` + tenantTZ + ` AS name)
-	SELECT a.id, a.employee_id, coalesce(u.full_name, e.employee_code) AS employee_name,
+	SELECT a.id, a.employee_id, e.user_id, coalesce(u.full_name, e.employee_code) AS employee_name,
 	       to_char((a.clock_in_at AT TIME ZONE tz.name)::date, 'YYYY-MM-DD') AS date,
 	       a.clock_in_at, a.clock_out_at, a.in_lat::float8 AS in_lat, a.in_lng::float8 AS in_lng,
 	       a.out_lat::float8 AS out_lat, a.out_lng::float8 AS out_lng, a.in_photo_file_id, a.out_photo_file_id,
@@ -374,6 +375,13 @@ func (s *Service) List(ctx context.Context, from, to string, employee *uuid.UUID
 			return RecordPage{}, err
 		}
 		return RecordPage{Items: items}, nil
+	})
+}
+
+// Day devuelve los marcajes de ese dia (C1 · Equipo hoy del supervisor).
+func (s *Service) Day(ctx context.Context, date string) ([]RecordRead, error) {
+	return database.InTxValue(ctx, s.db, func(q database.Querier) ([]RecordRead, error) {
+		return collect(ctx, q, `WHERE (a.clock_in_at AT TIME ZONE tz.name)::date = $1::date ORDER BY a.clock_in_at`, date)
 	})
 }
 

@@ -30,6 +30,10 @@ type attendanceListInput struct {
 }
 type attendanceListOutput struct{ Body attendance.RecordPage }
 type attendanceManualInput struct{ Body attendance.ManualCreate }
+type attendanceDayInput struct {
+	Date string `query:"date" format:"date" required:"true"`
+}
+type attendanceDayOutput struct{ Body []attendance.RecordRead }
 type attendanceUpdateInput struct {
 	ID   uuid.UUID `path:"record_id" format:"uuid"`
 	Body attendance.RecordUpdate
@@ -76,6 +80,14 @@ func registerAttendance(v1 huma.API, svc *attendance.Service, guard *api.Guard) 
 		}
 		out, err := svc.List(ctx, in.From, in.To, emp, in.Limit)
 		return &attendanceListOutput{Body: out}, err
+	}))
+	huma.Register(grp, huma.Operation{
+		OperationID: "attendance-day", Method: http.MethodGet, Path: "/attendance/day", Summary: "Quién marcó ese día",
+		Description: "Para el tablero del equipo (app C1): tambien con tasks.assign.",
+		Middlewares: guard.RequireAnyPermission(authz.HRAttendanceManage, authz.TasksAssign),
+	}, authed(func(ctx context.Context, _ auth.Principal, in *attendanceDayInput) (*attendanceDayOutput, error) {
+		out, err := svc.Day(ctx, in.Date)
+		return &attendanceDayOutput{Body: out}, err
 	}))
 	huma.Register(grp, huma.Operation{
 		OperationID: "create-attendance", Method: http.MethodPost, Path: "/attendance", Summary: "Registrar un marcaje a mano",

@@ -95,6 +95,14 @@ func TestAttendanceFlow(t *testing.T) {
 		t.Fatalf("filtro por colaborador: %v", res.body)
 	}
 
+	// El supervisor ve quién marcó (C1) sin ver el resto de la asistencia.
+	res = o.do(http.MethodGet, "/api/v1/attendance/day?date="+to, o.super, nil)
+	expect(t, res, http.StatusOK)
+	if len(res.list) != 1 || res.list[0].(map[string]any)["user_id"] != o.ids["maria@garrent.gt"].String() {
+		t.Fatalf("equipo de hoy: %v", res.list)
+	}
+	expect(t, o.do(http.MethodGet, "/api/v1/attendance?from="+from+"&to="+to, o.super, nil), http.StatusForbidden)
+
 	// Entrada abierta de hace 17 h: el job la cierra a las 16 h y avisa a RRHH.
 	ctx := context.Background()
 	if _, err := testDB.Pool().Exec(ctx, `INSERT INTO tenant_garrent.attendance_records (employee_id, clock_in_at, in_lat, in_lng)
