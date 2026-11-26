@@ -103,6 +103,10 @@ type metricsRangeInput struct {
 type metricsBoardOutput struct{ Body metrics.Board }
 type metricsMineOutput struct{ Body metrics.MyMetrics }
 type metricsTeamOutput struct{ Body metrics.Team }
+type metricsReportInput struct {
+	Month string `query:"month" pattern:"^[0-9]{4}-[0-9]{2}$" doc:"AAAA-MM; vacio = este mes."`
+}
+type metricsReportOutput struct{ Body metrics.MonthReport }
 type goalsInput struct {
 	All bool `query:"all" doc:"Incluye las desactivadas."`
 }
@@ -145,6 +149,14 @@ func registerMetrics(v1 huma.API, svc *metrics.Service, guard *api.Guard) {
 	}, authed(func(ctx context.Context, p auth.Principal, in *metricsRangeInput) (*metricsMineOutput, error) {
 		out, err := svc.Me(ctx, p.Actor(), in.Range)
 		return &metricsMineOutput{Body: out}, err
+	}))
+	huma.Register(grp, huma.Operation{
+		OperationID: "metrics-report", Method: http.MethodGet, Path: "/metrics/report", Summary: "Reporte del mes por propiedad",
+		Description: "Ocupacion, limpiezas e incidencias (app E3). El propietario ve solo sus propiedades.",
+		Middlewares: guard.RequirePermission(authz.MetricsAll), Errors: []int{http.StatusUnprocessableEntity},
+	}, authed(func(ctx context.Context, p auth.Principal, in *metricsReportInput) (*metricsReportOutput, error) {
+		out, err := svc.Report(ctx, p.Actor(), in.Month)
+		return &metricsReportOutput{Body: out}, err
 	}))
 	huma.Register(grp, huma.Operation{
 		OperationID: "list-goals", Method: http.MethodGet, Path: "/metrics/goals", Summary: "Metas",

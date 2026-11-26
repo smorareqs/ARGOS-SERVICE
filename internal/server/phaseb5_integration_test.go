@@ -178,6 +178,18 @@ func TestMetricsGoalsAndIncentives(t *testing.T) {
 	}
 	expect(t, o.do(http.MethodGet, "/api/v1/metrics/board?range=1y", o.admin, nil), http.StatusUnprocessableEntity)
 
+	// Reporte del mes (E3): limpiezas por propiedad; el propietario sin propiedades no ve ninguna.
+	res = o.do(http.MethodGet, "/api/v1/metrics/report?month="+now.Format("2006-01"), o.admin, nil)
+	expect(t, res, http.StatusOK)
+	if res.body["totals"].(map[string]any)["cleanings"] != float64(3) || len(res.body["properties"].([]any)) != 2 {
+		t.Fatalf("reporte del mes: %v", res.body)
+	}
+	res = o.do(http.MethodGet, "/api/v1/metrics/report", o.owner, nil)
+	expect(t, res, http.StatusOK)
+	if len(res.body["properties"].([]any)) != 0 {
+		t.Fatalf("reporte del propietario: %v", res.body)
+	}
+
 	// Supervisor: ranking del equipo (solo colaboradores con ficha).
 	res = o.do(http.MethodGet, "/api/v1/metrics/team?range=month", o.super, nil)
 	expect(t, res, http.StatusOK)
