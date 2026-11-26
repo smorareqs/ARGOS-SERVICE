@@ -106,6 +106,7 @@ en despliegue las variables vienen del entorno y tienen prioridad sobre el `.env
 | `ARGOS_BILLING_PROVIDER`              | `fake`      | Pasarela de pago (hoy solo la simulada)  |
 | `ARGOS_BILLING_WEBHOOK_SECRET`        | derivado de `SECRET_KEY` | Secreto HMAC de los webhooks de la pasarela |
 | `ARGOS_GOOGLE_MAPS_KEY`               | —           | Clave de navegador de Google Maps (mapa 3D del Inicio). Vacía = mapa ilustrado |
+| `ARGOS_FCM_CREDENTIALS`               | —           | Cuenta de servicio de Firebase (ruta al JSON o el JSON). Vacía = el push solo se registra en el log |
 | `ARGOS_GOOGLE_MAPS_MAP_ID`            | —           | Estilo de mapa de Google (opcional) |
 
 ## Puesta en marcha

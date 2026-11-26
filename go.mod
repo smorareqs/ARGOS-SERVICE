@@ -10,6 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sesv2 v1.80.0
 	github.com/aws/smithy-go v1.28.9
 	github.com/caarlos0/env/v11 v11.4.1
+	github.com/coder/websocket v1.8.14
 	github.com/danielgtaylor/huma/v2 v2.39.1
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-chi/cors v1.2.2

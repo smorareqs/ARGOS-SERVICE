@@ -101,6 +101,10 @@ type Config struct {
 	// navegador restringida por dominio; vacia = la web usa el mapa ilustrado.
 	GoogleMapsKey   string `env:"GOOGLE_MAPS_KEY"`
 	GoogleMapsMapID string `env:"GOOGLE_MAPS_MAP_ID"`
+	// Push a la app (Firebase Cloud Messaging HTTP v1): ruta al JSON de la
+	// cuenta de servicio o el JSON mismo. Vacio = los push solo se registran
+	// en el log (local).
+	FCMCredentials string `env:"FCM_CREDENTIALS"`
 }
 
 // Drivers de correo.

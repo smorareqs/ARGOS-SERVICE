@@ -16,6 +16,7 @@ import (
 	"github.com/smorareqs/argos-service/internal/core/mail"
 	"github.com/smorareqs/argos-service/internal/modules/billing"
 	"github.com/smorareqs/argos-service/internal/modules/maintenance"
+	"github.com/smorareqs/argos-service/internal/modules/notifications"
 	"github.com/smorareqs/argos-service/internal/modules/reservations"
 	"github.com/smorareqs/argos-service/internal/modules/tasks"
 )
@@ -74,6 +75,10 @@ func NewJobRegistry(svc Services, mailer *mail.Service) *jobs.Registry {
 	// Fase 2 (Persona B): tareas retrasadas cada 5 minutos por empresa.
 	r.Register(tasks.JobMarkLate, svc.Tasks.HandleJob)
 	r.Every(tasks.JobMarkLate, 5*time.Minute)
+	// Fase 3 (Persona B): push de cada aviso y recordatorio 30 min antes.
+	r.Register(notifications.JobSendPush, svc.Notifications.HandleJob)
+	r.Register(notifications.JobTaskReminders, svc.Notifications.HandleJob)
+	r.Every(notifications.JobTaskReminders, 5*time.Minute)
 	return r
 }
 

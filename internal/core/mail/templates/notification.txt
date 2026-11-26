@@ -1,0 +1,9 @@
+{{define "subject"}}{{.Title}} · {{.TenantName}}{{end}}
+{{define "text"}}Hola {{.Name}},
+
+{{.Title}}
+{{.Body}}
+
+Ábrelo en ARGOS: {{.Link}}
+
+Puedes elegir qué avisos recibes por correo en la app, en Perfil › Notificaciones.{{end}}

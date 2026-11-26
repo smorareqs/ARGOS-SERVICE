@@ -34,8 +34,10 @@ import (
 	"github.com/smorareqs/argos-service/internal/modules/health"
 	"github.com/smorareqs/argos-service/internal/modules/inventory"
 	"github.com/smorareqs/argos-service/internal/modules/maintenance"
+	"github.com/smorareqs/argos-service/internal/modules/notifications"
 	"github.com/smorareqs/argos-service/internal/modules/payroll"
 	"github.com/smorareqs/argos-service/internal/modules/properties"
+	"github.com/smorareqs/argos-service/internal/modules/realtime"
 	"github.com/smorareqs/argos-service/internal/modules/reservations"
 	"github.com/smorareqs/argos-service/internal/modules/tasks"
 	"github.com/smorareqs/argos-service/internal/modules/tenants"
@@ -76,6 +78,9 @@ type Services struct {
 	// Fase 2 (Persona B): itinerario y tareas, inventario.
 	Inventory *inventory.Service
 	Tasks     *tasks.Service
+	// Fase 3 (Persona B): bandeja, push y correo de avisos; tiempo real.
+	Notifications *notifications.Service
+	Realtime      *realtime.Hub
 }
 
 // ClientConfig es lo que la web pide al iniciar sesion (GET /client-config).
@@ -144,6 +149,17 @@ func NewServices(cfg config.Config, db *database.DB, log *slog.Logger) (Services
 	maint.SetTaskLinker(taskSvc.LinkTicket)
 	dash.SetTasksSource(taskSvc.TodayBlock)
 	taskSvc.Subscribe(bus)
+	// Fase 3 (Persona B): los avisos se arman con los eventos de dominio.
+	var push notifications.PushSender
+	if cfg.FCMCredentials != "" {
+		fcm, err := notifications.NewFCM(cfg.FCMCredentials)
+		if err != nil {
+			return Services{}, err
+		}
+		push = fcm
+	}
+	notif := notifications.NewService(db, push, cfg.WebBaseURL, log.With("module", "notifications"))
+	notif.Subscribe(bus)
 	return Services{
 		Health: health.NewService(db, string(cfg.Environment)).WithReadiness(health.Readiness{
 			DB: db, Storage: store, Shared: sharedMigrations, Tenant: tenantMigrations,
@@ -177,6 +193,9 @@ func NewServices(cfg config.Config, db *database.DB, log *slog.Logger) (Services
 
 		Inventory: inv,
 		Tasks:     taskSvc,
+
+		Notifications: notif,
+		Realtime:      realtime.NewHub(db, authSvc, log.With("module", "realtime")),
 	}, nil
 }
 

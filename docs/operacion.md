@@ -80,6 +80,7 @@ Es una clave de navegador: viaja al cliente, por eso la restricción por dominio
 | `ARGOS_FIELD_ENCRYPTION_KEY` | Los datos cifrados (2FA, acceso a propiedades) dejan de leerse | **No rotar sin migrar**: descifrar con la anterior y cifrar con la nueva en una tarea controlada |
 | `ARGOS_BILLING_WEBHOOK_SECRET` | Los webhooks firmados con el anterior responden 401 | Cambiarlo a la vez en la pasarela y en la variable |
 | Claves de AWS | — | En AWS se usan roles IAM; no hay claves que rotar |
+| `ARGOS_FCM_CREDENTIALS` | Hasta reiniciar el worker, el push sigue con la anterior | Generar otra clave en Firebase, cambiar la variable, reiniciar API y worker y borrar la vieja |
 | `ARGOS_GOOGLE_MAPS_KEY` | Hasta reiniciar, la web sigue con la anterior | Crear otra en Google Cloud con las mismas restricciones, cambiar la variable, reiniciar la API y borrar la vieja |
 | Claves API de empresas | La empresa revoca la vieja y crea otra en Configuración › Integraciones | La clave nueva se muestra una sola vez |
 
@@ -117,6 +118,23 @@ empresa e intentos. Los errores no controlados se registran con su detalle; al c
 | Trabajo | Cada | Qué hace |
 | --- | --- | --- |
 | `mark_late_tasks` | 5 min, por empresa | Marca `is_late` en la hora local de la empresa (no se inició a la hora de inicio o no se terminó a la de fin), deja el evento `late` y publica `task.late`. |
+| `task_reminders` | 5 min, por empresa | Avisa a quien tiene una tarea pendiente que empieza en los próximos 30 min (hora local), una vez por tarea. |
+| `send_push` | Al crear un aviso | Manda el push a los teléfonos del usuario (FCM). Los tokens que FCM rechaza se borran. |
+
+### Avisos y tiempo real
+
+- Los avisos se guardan en la bandeja (`GET /api/v1/notifications`) y, según las preferencias de
+  cada persona, se mandan por push y por correo (plantilla `notification`). Los críticos
+  (`task_assigned`, `checkout_alarm`) no se pueden apagar.
+- **Push:** `ARGOS_FCM_CREDENTIALS` es la ruta al JSON de la cuenta de servicio de Firebase (o el
+  JSON mismo). Sin ella, el push solo se registra en el log. Se saca en Firebase › Configuración
+  del proyecto › Cuentas de servicio › Generar nueva clave privada; rotarla es generar otra,
+  cambiar la variable, reiniciar el worker y borrar la vieja.
+- **Tiempo real:** `GET /api/v1/ws?token=<access_token>` (WebSocket). Cada mensaje es
+  `{"type": "...", "data": {...}}`: `hello` al conectar, `notification` (el aviso nuevo) y
+  `notification.read`. Viaja por `NOTIFY argos_realtime` de PostgreSQL, así que funciona con
+  varias réplicas de la API. El balanceador debe permitir WebSocket (en ALB está activo por
+  defecto) con un tiempo de inactividad mayor a 30 s (el servidor hace ping cada 25 s).
 
 ### Pendiente de Persona B
 

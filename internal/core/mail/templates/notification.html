@@ -1,0 +1,7 @@
+{{define "preheader"}}{{.Body}}{{end}}
+{{define "content"}}
+<h1 style="margin:0 0 12px;font-size:22px;line-height:30px;color:#003841;">{{.Title}}</h1>
+<p style="margin:0 0 12px;font-size:15px;line-height:24px;">Hola {{.Name}}, {{.Body}}</p>
+{{template "button" (dict "Link" .Link "Label" "Abrir en ARGOS")}}
+<p style="margin:16px 0 0;font-size:13px;line-height:20px;color:#7d7d72;">Puedes elegir qué avisos de {{.TenantName}} recibes por correo en la app, en Perfil › Notificaciones.</p>
+{{end}}

@@ -41,6 +41,10 @@ func New(cfg config.Config, log *slog.Logger, svc app.Services) http.Handler {
 
 	humaAPI := humachi.New(router, humaConfig())
 	v1.Register(humaAPI, svc)
+	// Tiempo real (fase 3, Persona B): WebSocket fuera de huma.
+	if svc.Realtime != nil {
+		router.Get(v1.Prefix+"/ws", svc.Realtime.ServeHTTP)
+	}
 	if cfg.Environment == config.Local {
 		mountDevICal(router)
 	}
