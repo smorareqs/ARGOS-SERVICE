@@ -64,6 +64,8 @@ const (
 const (
 	// JobSendPush manda el push de un aviso a los dispositivos del usuario.
 	JobSendPush = "send_push"
+	// JobSendGuestPush manda un push al telefono de un huesped (fase 4).
+	JobSendGuestPush = "send_guest_push"
 	// JobTaskReminders avisa 30 min antes de cada ventana (cada 5 min).
 	JobTaskReminders = "task_reminders"
 )

@@ -120,6 +120,8 @@ empresa e intentos. Los errores no controlados se registran con su detalle; al c
 | `mark_late_tasks` | 5 min, por empresa | Marca `is_late` en la hora local de la empresa (no se inició a la hora de inicio o no se terminó a la de fin), deja el evento `late` y publica `task.late`. |
 | `task_reminders` | 5 min, por empresa | Avisa a quien tiene una tarea pendiente que empieza en los próximos 30 min (hora local), una vez por tarea. |
 | `send_push` | Al crear un aviso | Manda el push a los teléfonos del usuario (FCM). Los tokens que FCM rechaza se borran. |
+| `security_alarms` | 1 min, por empresa con `reservations` | Hace sonar las alarmas de salida que llegaron a su hora (aviso crítico `checkout_alarm` a quien tiene `security.dashboard`) y, si nadie las atiende en 60 min, levanta la alerta `checkout_alarm_unattended` (una vez). |
+| `send_guest_push` | Al confirmar un bloque de área común | Push al teléfono del huésped (token de `POST /guest/device`). Si FCM rechaza el token no se reintenta. |
 
 ### Avisos y tiempo real
 
@@ -135,6 +137,25 @@ empresa e intentos. Los errores no controlados se registran con su detalle; al c
   `notification.read`. Viaja por `NOTIFY argos_realtime` de PostgreSQL, así que funciona con
   varias réplicas de la API. El balanceador debe permitir WebSocket (en ALB está activo por
   defecto) con un tiempo de inactividad mayor a 30 s (el servidor hace ping cada 25 s).
+
+### Huéspedes, parqueos, áreas y seguridad (fase 4)
+
+- **Acceso del huésped:** al confirmar (o reenviar) una reserva se crean el enlace
+  `argos://guest?token=…` y un código `XXXX-XXXX` que van en el correo; el reenvío revoca los
+  anteriores. Solo se guarda el hash. `POST /api/v1/guest/auth` (token, o código y correo; 10
+  intentos por minuto por IP) devuelve un JWT `type=guest` que vale hasta 24 h después de la
+  salida, sin refresh. Cancelar la reserva lo invalida al momento.
+- **Alarmas de salida:** dos por reserva confirmada (la previa, `checkout_alarm_minutes` de la
+  empresa, 30 por defecto, y la de la hora exacta), en la zona de la empresa. Se reprograman si
+  cambia la salida y se cancelan al cancelar o hacer check-out. Atender una marca las dos.
+- **Parqueos:** la BD rechaza dos asignaciones del mismo espacio que se cruzan
+  (`ex_parking_assignments_overlap`). Cancelar la reserva libera su espacio; cambiar sus fechas
+  lo mueve si sigue libre o lo libera.
+- **Áreas comunes:** la capacidad son personas a la vez; reservar bloquea el área
+  (`SELECT … FOR UPDATE`) y suma las personas que se cruzan.
+- **Datos de prueba:** `seed demo-tenant` deja espacios, áreas, placas, bloques y un huésped en
+  casa por empresa con código fijo (`HUESPED-GAR` en Garrent y `HUESPED-CST` en Costa Limpia; el
+  correo se imprime al sembrar).
 
 ### Pendiente de Persona B
 

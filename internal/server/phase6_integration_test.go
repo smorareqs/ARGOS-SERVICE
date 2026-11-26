@@ -537,6 +537,10 @@ func TestIsolationGenerated(t *testing.T) {
 		})
 		res := e.do(op.method, path, intruder, map[string]any{})
 		checked++
+		// /guest/* solo acepta el JWT del huesped: la sesion de un usuario es 401.
+		if strings.HasPrefix(op.path, "/api/v1/guest/") && res.status == http.StatusUnauthorized {
+			continue
+		}
 		switch res.status {
 		case http.StatusBadRequest, http.StatusForbidden, http.StatusNotFound, http.StatusMethodNotAllowed, http.StatusUnprocessableEntity:
 		default:

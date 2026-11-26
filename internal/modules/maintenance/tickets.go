@@ -25,7 +25,7 @@ const selectTicket = `
 	       coalesce(t.building_id, p.building_id) AS building_id, b.name AS building_name,
 	       t.asset_id, a.name AS asset_name, a.category AS asset_category, t.plan_id, mp.name AS plan_name,
 	       t.title, t.description, t.urgency, t.status,
-	       t.reported_by_user_id, ur.full_name AS reporter_name, t.assigned_to, ua.full_name AS assignee_name,
+	       t.reported_by_user_id, coalesce(ur.full_name, (SELECT gr.full_name || ' (huésped)' FROM guests gr WHERE gr.id = t.reported_by_guest_id)) AS reporter_name, t.assigned_to, ua.full_name AS assignee_name,
 	       t.vendor_id, v.name AS vendor_name, t.task_id, t.resolution, t.cost::float8 AS cost,
 	       (SELECT count(*)::int FROM files f WHERE f.entity_type = 'maintenance_ticket' AND f.entity_id = t.id
 	          AND f.status = 'ready' AND f.deleted_at IS NULL) AS photos_count,
@@ -168,6 +168,25 @@ func (s *Service) ReportFromInspection(ctx context.Context, q database.Querier, 
 		return TicketRead{}, err
 	}
 	return s.created(ctx, q, actor.TenantID, reporter, id, map[string]any{"source": "inspection"})
+}
+
+// ReportFromGuest crea la incidencia que reporta un huesped desde la app
+// (guestaccess, fase 4) dentro de la transaccion de quien llama. El alcance es
+// la propiedad de su reserva; reported_by_guest_id dice quien fue.
+func (s *Service) ReportFromGuest(ctx context.Context, q database.Querier, tenantID, propertyID, guestID uuid.UUID,
+	title, description, urgency string,
+) (TicketRead, error) {
+	title = trim(title)
+	if len([]rune(title)) > 160 {
+		title = string([]rune(title)[:160])
+	}
+	var id uuid.UUID
+	if err := q.QueryRow(ctx, `
+		INSERT INTO maintenance_tickets (property_id, title, description, urgency, reported_by_guest_id)
+		VALUES ($1, $2, $3, $4, $5) RETURNING id`, propertyID, title, trim(description), urgency, guestID).Scan(&id); err != nil {
+		return TicketRead{}, err
+	}
+	return s.created(ctx, q, tenantID, nil, id, map[string]any{"source": "guest"})
 }
 
 // created registra el alta del ticket (evento, bitacora y aviso) y lo devuelve.

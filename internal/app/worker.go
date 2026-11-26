@@ -18,6 +18,7 @@ import (
 	"github.com/smorareqs/argos-service/internal/modules/maintenance"
 	"github.com/smorareqs/argos-service/internal/modules/notifications"
 	"github.com/smorareqs/argos-service/internal/modules/reservations"
+	"github.com/smorareqs/argos-service/internal/modules/securityops"
 	"github.com/smorareqs/argos-service/internal/modules/tasks"
 )
 
@@ -79,6 +80,10 @@ func NewJobRegistry(svc Services, mailer *mail.Service) *jobs.Registry {
 	r.Register(notifications.JobSendPush, svc.Notifications.HandleJob)
 	r.Register(notifications.JobTaskReminders, svc.Notifications.HandleJob)
 	r.Every(notifications.JobTaskReminders, 5*time.Minute)
+	// Fase 4 (Persona B): push al huesped y alarmas de salida cada minuto.
+	r.Register(notifications.JobSendGuestPush, svc.Notifications.HandleJob, jobs.ScrubPayload())
+	r.Register(securityops.JobAlarms, svc.Security.HandleJob)
+	r.Every(securityops.JobAlarms, time.Minute)
 	return r
 }
 

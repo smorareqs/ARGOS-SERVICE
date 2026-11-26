@@ -31,14 +31,18 @@ import (
 	"github.com/smorareqs/argos-service/internal/modules/disciplinary"
 	"github.com/smorareqs/argos-service/internal/modules/employees"
 	"github.com/smorareqs/argos-service/internal/modules/files"
+	"github.com/smorareqs/argos-service/internal/modules/guestaccess"
 	"github.com/smorareqs/argos-service/internal/modules/health"
 	"github.com/smorareqs/argos-service/internal/modules/inventory"
 	"github.com/smorareqs/argos-service/internal/modules/maintenance"
 	"github.com/smorareqs/argos-service/internal/modules/notifications"
+	"github.com/smorareqs/argos-service/internal/modules/parking"
 	"github.com/smorareqs/argos-service/internal/modules/payroll"
 	"github.com/smorareqs/argos-service/internal/modules/properties"
 	"github.com/smorareqs/argos-service/internal/modules/realtime"
 	"github.com/smorareqs/argos-service/internal/modules/reservations"
+	"github.com/smorareqs/argos-service/internal/modules/securityops"
+	"github.com/smorareqs/argos-service/internal/modules/sharedareas"
 	"github.com/smorareqs/argos-service/internal/modules/tasks"
 	"github.com/smorareqs/argos-service/internal/modules/tenants"
 )
@@ -81,6 +85,12 @@ type Services struct {
 	// Fase 3 (Persona B): bandeja, push y correo de avisos; tiempo real.
 	Notifications *notifications.Service
 	Realtime      *realtime.Hub
+	// Fase 4 (Persona B): huesped en la app, parqueos, areas comunes y
+	// seguridad (alarmas de salida y tablero).
+	GuestAccess *guestaccess.Service
+	Parking     *parking.Service
+	SharedAreas *sharedareas.Service
+	Security    *securityops.Service
 }
 
 // ClientConfig es lo que la web pide al iniciar sesion (GET /client-config).
@@ -160,6 +170,16 @@ func NewServices(cfg config.Config, db *database.DB, log *slog.Logger) (Services
 	}
 	notif := notifications.NewService(db, push, cfg.WebBaseURL, log.With("module", "notifications"))
 	notif.Subscribe(bus)
+	// Fase 4 (Persona B): accesos del huesped al confirmar, alarmas de salida y
+	// parqueos y areas que siguen a la reserva.
+	park := parking.NewService(db, log.With("module", "parking"))
+	park.Subscribe(bus)
+	areas := sharedareas.NewService(db, log.With("module", "shared_areas"))
+	areas.Subscribe(bus)
+	sec := securityops.NewService(db, notif, alertsSvc, log.With("module", "security"))
+	sec.Subscribe(bus)
+	guest := guestaccess.NewService(db, tokens, maint, areas, log.With("module", "guest_access"))
+	res.SetGuestAccess(guest.Issue)
 	return Services{
 		Health: health.NewService(db, string(cfg.Environment)).WithReadiness(health.Readiness{
 			DB: db, Storage: store, Shared: sharedMigrations, Tenant: tenantMigrations,
@@ -196,6 +216,11 @@ func NewServices(cfg config.Config, db *database.DB, log *slog.Logger) (Services
 
 		Notifications: notif,
 		Realtime:      realtime.NewHub(db, authSvc, log.With("module", "realtime")),
+
+		GuestAccess: guest,
+		Parking:     park,
+		SharedAreas: areas,
+		Security:    sec,
 	}, nil
 }
 

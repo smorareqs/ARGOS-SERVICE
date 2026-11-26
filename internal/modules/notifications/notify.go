@@ -366,6 +366,23 @@ func (s *Service) RemoveDevice(ctx context.Context, actor authz.Actor, token str
 	})
 }
 
+// GuestPush es un push al telefono de un huesped (guest_access_tokens.fcm_token).
+type GuestPush struct {
+	Token string            `json:"token"`
+	Title string            `json:"title"`
+	Body  string            `json:"body"`
+	Data  map[string]string `json:"data"`
+}
+
+// EnqueueGuestPush encola el push de un huesped con la transaccion q. Los
+// huespedes no tienen bandeja: solo push (y el correo que mande quien llama).
+func EnqueueGuestPush(ctx context.Context, q database.Querier, tenantID uuid.UUID, m GuestPush) error {
+	if m.Token == "" {
+		return nil
+	}
+	return jobs.Enqueue(ctx, q, jobs.Job{Type: JobSendGuestPush, TenantID: &tenantID, Payload: m, MaxAttempts: 3})
+}
+
 // ── Trabajos ──────────────────────────────────────────────
 
 // HandleJob corre send_push y task_reminders.
@@ -377,6 +394,16 @@ func (s *Service) HandleJob(ctx context.Context, job jobs.Running) error {
 			return fmt.Errorf("payload de push invalido: %w", err)
 		}
 		return s.sendPush(ctx, p.NotificationID)
+	case JobSendGuestPush:
+		var m GuestPush
+		if err := json.Unmarshal(job.Payload, &m); err != nil {
+			return fmt.Errorf("payload de push invalido: %w", err)
+		}
+		err := s.push.Send(ctx, PushMessage{Token: m.Token, Title: m.Title, Body: m.Body, Data: m.Data})
+		if errors.Is(err, ErrInvalidToken) {
+			return nil // el huesped desinstalo la app: no se reintenta
+		}
+		return err
 	case JobTaskReminders:
 		if job.TenantID == nil {
 			return s.fanOut(ctx, job.Type)
