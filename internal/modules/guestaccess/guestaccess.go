@@ -94,7 +94,7 @@ type GuestMe struct {
 	ReservationID   uuid.UUID       `json:"reservation_id" format:"uuid"`
 	ReservationCode string          `json:"reservation_code"`
 	ExpiresAt       time.Time       `json:"expires_at"`
-	Features        map[string]bool `json:"features" doc:"parking, shared_areas, guest_chat."`
+	Features        map[string]bool `json:"features" doc:"parking, shared_areas, guest_chat, smart_locks."`
 }
 
 // GuestReservation es GET /guest/reservation: lo que el huesped ve de su estancia.
@@ -241,6 +241,13 @@ func DemoCode(ctx context.Context, q database.Querier, reservationID uuid.UUID, 
 	return email, err
 }
 
+// DemoReservation es la reserva del codigo fijo de la semilla (solo semilla).
+func DemoReservation(ctx context.Context, q database.Querier, code string) (uuid.UUID, error) {
+	var id uuid.UUID
+	err := q.QueryRow(ctx, `SELECT reservation_id FROM guest_access_tokens WHERE token_hash = $1`, hash(normalizeCode(code))).Scan(&id)
+	return id, err
+}
+
 // Auth cambia el enlace o el codigo y correo por la sesion del huesped. La
 // empresa no viene en la peticion: se busca el acceso en las empresas con la
 // bandera reservations (por hash, con indice unico).
@@ -380,7 +387,7 @@ func (s *Service) Resolve(ctx context.Context, token string) (Principal, error) 
 // Me es lo que la app muestra arriba (ctx con el schema del huesped).
 func (s *Service) Me(ctx context.Context, p Principal) (GuestMe, error) {
 	me := GuestMe{GuestID: p.GuestID, TenantName: p.TenantName, ReservationID: p.ReservationID, ExpiresAt: p.ExpiresAt, Features: map[string]bool{}}
-	for _, f := range []string{"parking", "shared_areas", "guest_chat"} {
+	for _, f := range []string{"parking", "shared_areas", "guest_chat", "smart_locks"} {
 		me.Features[f] = p.Features[f]
 	}
 	err := s.db.InTx(ctx, func(q database.Querier) error {

@@ -98,6 +98,11 @@ var Rules = map[string]Rule{
 	"attendance/selfie": {
 		Upload: authz.HRAttendanceOwn, Read: []authz.Permission{authz.HRAttendanceManage}, Types: imageTypes, MaxBytes: 5 << 20,
 	},
+	// Fotos del chat (fase 6, Persona B). Quien ve la conversacion recibe la
+	// URL firmada en el mensaje.
+	"chat/image": {
+		Upload: authz.ChatInternal, Read: []authz.Permission{authz.ChatInternal, authz.ChatGuest}, Types: imageTypes, MaxBytes: 10 << 20,
+	},
 }
 
 // Errores del modulo.

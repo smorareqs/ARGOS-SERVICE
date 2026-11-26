@@ -27,6 +27,7 @@ import (
 	"github.com/smorareqs/argos-service/internal/modules/auth"
 	"github.com/smorareqs/argos-service/internal/modules/authz"
 	"github.com/smorareqs/argos-service/internal/modules/billing"
+	"github.com/smorareqs/argos-service/internal/modules/chat"
 	"github.com/smorareqs/argos-service/internal/modules/checklists"
 	"github.com/smorareqs/argos-service/internal/modules/dashboard"
 	"github.com/smorareqs/argos-service/internal/modules/disciplinary"
@@ -35,6 +36,7 @@ import (
 	"github.com/smorareqs/argos-service/internal/modules/guestaccess"
 	"github.com/smorareqs/argos-service/internal/modules/health"
 	"github.com/smorareqs/argos-service/internal/modules/inventory"
+	"github.com/smorareqs/argos-service/internal/modules/locks"
 	"github.com/smorareqs/argos-service/internal/modules/maintenance"
 	"github.com/smorareqs/argos-service/internal/modules/metrics"
 	"github.com/smorareqs/argos-service/internal/modules/notifications"
@@ -43,6 +45,7 @@ import (
 	"github.com/smorareqs/argos-service/internal/modules/properties"
 	"github.com/smorareqs/argos-service/internal/modules/realtime"
 	"github.com/smorareqs/argos-service/internal/modules/reservations"
+	"github.com/smorareqs/argos-service/internal/modules/retention"
 	"github.com/smorareqs/argos-service/internal/modules/securityops"
 	"github.com/smorareqs/argos-service/internal/modules/sharedareas"
 	"github.com/smorareqs/argos-service/internal/modules/tasks"
@@ -96,6 +99,10 @@ type Services struct {
 	// Fase 5 (Persona B): marcaje, metricas, metas e incentivos.
 	Attendance *attendance.Service
 	Metrics    *metrics.Service
+	// Fase 6 (Persona B): chat, cerraduras y retencion con el pulso del worker.
+	Chat      *chat.Service
+	Locks     *locks.Service
+	Retention *retention.Service
 }
 
 // ClientConfig es lo que la web pide al iniciar sesion (GET /client-config).
@@ -185,6 +192,12 @@ func NewServices(cfg config.Config, db *database.DB, log *slog.Logger) (Services
 	sec.Subscribe(bus)
 	guest := guestaccess.NewService(db, tokens, maint, areas, log.With("module", "guest_access"))
 	res.SetGuestAccess(guest.Issue)
+	// Fase 6 (Persona B): conversacion del huesped al confirmar y codigos de
+	// cerradura que siguen a la reserva.
+	chatSvc := chat.NewService(db, store, log.With("module", "chat"))
+	chatSvc.Subscribe(bus)
+	lockSvc := locks.NewService(db, cipher, notif, log.With("module", "locks"))
+	lockSvc.Subscribe(bus)
 	return Services{
 		Health: health.NewService(db, string(cfg.Environment)).WithReadiness(health.Readiness{
 			DB: db, Storage: store, Shared: sharedMigrations, Tenant: tenantMigrations,
@@ -229,6 +242,10 @@ func NewServices(cfg config.Config, db *database.DB, log *slog.Logger) (Services
 
 		Attendance: attendance.NewService(db, notif, log.With("module", "attendance")),
 		Metrics:    metrics.NewService(db, notif, log.With("module", "metrics")),
+
+		Chat:      chatSvc,
+		Locks:     lockSvc,
+		Retention: retention.NewService(db, log.With("module", "retention")),
 	}, nil
 }
 

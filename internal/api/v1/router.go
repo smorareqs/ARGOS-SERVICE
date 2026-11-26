@@ -47,7 +47,9 @@ func Register(humaAPI huma.API, svc app.Services) {
 	registerParking(v1, svc.Parking, guard)
 	registerSharedAreas(v1, svc.SharedAreas, guard)
 	registerSecurity(v1, svc.Security, guard)
-	registerGuest(v1, svc.GuestAccess)
+	registerGuest(v1, svc.GuestAccess, svc.Chat, svc.Locks)
 	registerAttendance(v1, svc.Attendance, guard)
 	registerMetrics(v1, svc.Metrics, guard)
+	registerChat(v1, svc.Chat, guard)
+	registerLocks(v1, svc.Locks, guard)
 }

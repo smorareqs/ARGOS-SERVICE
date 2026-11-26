@@ -383,6 +383,73 @@ func EnqueueGuestPush(ctx context.Context, q database.Querier, tenantID uuid.UUI
 	return jobs.Enqueue(ctx, q, jobs.Job{Type: JobSendGuestPush, TenantID: &tenantID, Payload: m, MaxAttempts: 3})
 }
 
+// UserPush es un push a los telefonos de un usuario sin aviso en la bandeja
+// (los mensajes del chat ya se ven en su conversacion).
+type UserPush struct {
+	UserID uuid.UUID         `json:"user_id"`
+	Type   string            `json:"type"`
+	Title  string            `json:"title"`
+	Body   string            `json:"body"`
+	Data   map[string]string `json:"data"`
+}
+
+// EnqueueUserPush encola el push con la transaccion q si el usuario no lo
+// apago en sus preferencias (tipo m.Type).
+func EnqueueUserPush(ctx context.Context, q database.Querier, tenantID uuid.UUID, m UserPush) error {
+	if m.UserID == uuid.Nil {
+		return nil
+	}
+	if !Critical[m.Type] {
+		prefs, err := preferencesFor(ctx, q, m.Type, []uuid.UUID{m.UserID})
+		if err != nil {
+			return err
+		}
+		if p, ok := prefs[m.UserID]; ok && !p[0] {
+			return nil
+		}
+	}
+	m.Title = truncate(m.Title, 160)
+	m.Body = truncate(m.Body, 240)
+	return jobs.Enqueue(ctx, q, jobs.Job{Type: JobSendUserPush, TenantID: &tenantID, Payload: m, MaxAttempts: 3})
+}
+
+func (s *Service) sendUserPush(ctx context.Context, m UserPush) error {
+	tokens, err := database.InTxValue(ctx, s.db, func(q database.Querier) ([]string, error) {
+		rows, err := q.Query(ctx, `SELECT fcm_token FROM shared.device_tokens WHERE user_id = $1 ORDER BY last_seen_at DESC LIMIT 10`, m.UserID)
+		if err != nil {
+			return nil, err
+		}
+		return pgx.CollectRows(rows, pgx.RowTo[string])
+	})
+	if err != nil {
+		return err
+	}
+	data := map[string]string{"type": m.Type}
+	for k, v := range m.Data {
+		data[k] = v
+	}
+	var dead []string
+	var lastErr error
+	for _, t := range tokens {
+		err := s.push.Send(ctx, PushMessage{Token: t, Title: m.Title, Body: m.Body, Data: data})
+		switch {
+		case errors.Is(err, ErrInvalidToken):
+			dead = append(dead, t)
+		case err != nil:
+			lastErr = err
+		}
+	}
+	if len(dead) > 0 {
+		if err := s.db.InTx(ctx, func(q database.Querier) error {
+			_, err := q.Exec(ctx, `DELETE FROM shared.device_tokens WHERE fcm_token = ANY($1)`, dead)
+			return err
+		}); err != nil {
+			return err
+		}
+	}
+	return lastErr
+}
+
 // ── Trabajos ──────────────────────────────────────────────
 
 // HandleJob corre send_push y task_reminders.
@@ -404,6 +471,12 @@ func (s *Service) HandleJob(ctx context.Context, job jobs.Running) error {
 			return nil // el huesped desinstalo la app: no se reintenta
 		}
 		return err
+	case JobSendUserPush:
+		var m UserPush
+		if err := json.Unmarshal(job.Payload, &m); err != nil {
+			return fmt.Errorf("payload de push invalido: %w", err)
+		}
+		return s.sendUserPush(ctx, m)
 	case JobTaskReminders:
 		if job.TenantID == nil {
 			return s.fanOut(ctx, job.Type)

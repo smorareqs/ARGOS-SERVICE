@@ -83,7 +83,7 @@ type demoMember struct {
 // (WEB/src/app/core/mocks/demo-seed.ts), ahora como datos reales.
 var (
 	demoTenants = []demoTenant{
-		{slug: "garrent", name: "Garrent", features: map[string]bool{"reservations": true, "shared_areas": true, "payroll": true, "guest_chat": true}},
+		{slug: "garrent", name: "Garrent", features: map[string]bool{"reservations": true, "shared_areas": true, "payroll": true, "guest_chat": true, "smart_locks": true}},
 		{slug: "costa_limpia", name: "Costa Limpia", features: map[string]bool{"reservations": true, "parking": true}},
 	}
 	demoMembers = []demoMember{
@@ -159,6 +159,7 @@ func seedPhases(ctx context.Context, services app.Services, db *database.DB, ids
 		func() error { return seedGuestOps(ctx, services, ids) },
 		func() error { return seedAttendance(ctx, services, ids) },
 		func() error { return seedHR(ctx, services, ids) },
+		func() error { return seedChatAndLocks(ctx, services, ids) },
 		func() error { return seedBilling(ctx, db, ids) },
 		func() error { return seedInvitations(ctx, services, db, ids) },
 	}

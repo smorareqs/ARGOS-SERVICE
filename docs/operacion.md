@@ -125,6 +125,12 @@ empresa e intentos. Los errores no controlados se registran con su detalle; al c
 | `attendance_autoclose` | 15 min, por empresa | Cierra a las 16 h los marcajes sin salida (`autoclosed = true`), deja la bitácora y avisa a quien tiene `hr.attendance.manage` (`attendance_autoclosed`) y al colaborador. |
 | `performance_snapshot` | 24 h, por empresa | Guarda en `performance_snapshots` las cifras de ayer por colaborador (limpiezas, minutos, checklist, retrasos, devueltas, reportes y diferencias abiertas). Es idempotente. |
 | `incentive_evaluation` | 24 h, por empresa | Revisa cada meta activa en la última semana o el último mes cerrado y crea los incentivos `pending` de quien la cumplió (uno por meta, persona y período). Si hubo nuevos, avisa a quien tiene `hr.payroll.manage`. |
+| `send_user_push` | Al mandar un mensaje de chat | Push a los teléfonos de un participante sin aviso en la bandeja (respeta la preferencia `chat_message` y las conversaciones silenciadas). |
+| `chat_archive` | 1 h, por empresa | Archiva las conversaciones de huéspedes 24 h después del check-out, o al cancelar o no llegar. |
+| `lock_provision` | Al confirmar o mover una reserva con cerradura | Crea el código de 6 dígitos (desde la entrada hasta 2 h después de la salida) y lo programa en cada cerradura activa de la propiedad. Si cambian las fechas revoca el anterior. Reintenta 5 veces; a la primera falla avisa `lock_failed` a quien tiene `reservations.manage`. |
+| `lock_revoke` | Al cancelar o hacer check-out | Quita de la cerradura los códigos vivos de la reserva. |
+| `retention_cleanup` | 1 h | Marca evidencias de más de 24 meses, borra avisos leídos de más de 180 días y trabajos terminados de más de 30 días (fallidos: 90) y luego borra de S3 los archivos vencidos (también las fotos de documento a los 90 días de la salida). |
+| `worker_stats` | 5 min | Deja en el log `Worker: cola al dia` con pendientes, corriendo, terminados y fallidos de la última hora por tipo; si hay fallos, algo atorado más de 15 min o un pendiente de más de 10 min el mensaje es `Worker: revisar la cola` en nivel WARN (para una alerta de CloudWatch). |
 
 ### Avisos y tiempo real
 
@@ -178,7 +184,24 @@ empresa e intentos. Los errores no controlados se registran con su detalle; al c
   (con retrasos y ausencias), tres metas, las fotos diarias de 30 días y los incentivos del
   último período cerrado. Corre antes de la nómina de demostración.
 
-### Pendiente de Persona B
+### Chat, cerraduras y retención (fase 6)
 
-Retención completa (evidencias, notificaciones leídas, trabajos terminados), cerraduras
-(`lock_provision`, `lock_revoke`) y métricas del worker: se documentan aquí cuando estén.
+- **Chat:** internas (1:1 que se reutiliza, o grupos con nombre) para quien tiene `chat.internal`;
+  la de cada reserva se crea al confirmarla si la empresa tiene `guest_chat` (o la primera vez que
+  el huésped abre el chat), con un saludo. Las de huéspedes las ve todo el que tiene `chat.guest`
+  sobre la propiedad. Cada mensaje sale por el socket como `chat.message` (Data el mensaje) y por
+  push. El huésped escribe solo texto; el personal puede mandar fotos (`files` módulo `chat`, tipo
+  `image`, 10 MB).
+- **Cerraduras:** `POST /locks/devices` (permiso `properties.manage`, bandera `smart_locks`) con
+  credenciales que se guardan cifradas con `ARGOS_FIELD_ENCRYPTION_KEY`. Los códigos se guardan
+  cifrados; la web solo ve los dos últimos dígitos y el huésped ve el código en `GET /guest/lock`
+  desde 24 h antes de su entrada. **Mientras no haya acceso a la API de Nexxt, toda cerradura usa el
+  proveedor simulado** (acepta todo salvo un `external_id` que empiece con `fail`, para probar
+  fallas). Integrar Nexxt es implementar `locks.Provider` y registrarlo con `SetProvider("nexxt", …)`.
+  `POST /locks/reservations/{id}/provision` reintenta a mano.
+- **Retención:** ver `retention_cleanup` arriba. Los plazos están en
+  `internal/modules/retention` (`EvidenceMonths`, `ReadNoticeDays`, `FinishedJobDays`,
+  `FailedJobDays`).
+- **Datos de prueba:** en Garrent, una 1:1 (Jorge y María), el grupo "Mantenimiento Garrent", la
+  conversación del huésped `HUESPED-GAR` con una pregunta y su respuesta, y una cerradura simulada
+  en su propiedad con el código ya programado.

@@ -48,6 +48,8 @@ const (
 	// Fase 5 (Persona B): marcaje cerrado solo a las 16 h e incentivos por aprobar.
 	TypeAttendanceAutoclosed = "attendance_autoclosed"
 	TypeIncentivePending     = "incentive_pending"
+	// Fase 6 (Persona B): una cerradura no acepto el codigo de una reserva.
+	TypeLockFailed = "lock_failed"
 )
 
 // Critical son los avisos que no se pueden apagar (fase03 §2).
@@ -69,6 +71,8 @@ const (
 	JobSendPush = "send_push"
 	// JobSendGuestPush manda un push al telefono de un huesped (fase 4).
 	JobSendGuestPush = "send_guest_push"
+	// JobSendUserPush manda un push sin aviso en la bandeja (chat, fase 6).
+	JobSendUserPush = "send_user_push"
 	// JobTaskReminders avisa 30 min antes de cada ventana (cada 5 min).
 	JobTaskReminders = "task_reminders"
 )
@@ -173,6 +177,8 @@ var Labels = map[string]string{
 
 	TypeAttendanceAutoclosed: "Marcajes sin salida",
 	TypeIncentivePending:     "Incentivos por aprobar",
+
+	TypeLockFailed: "Fallas de cerraduras",
 }
 
 // Service es la bandeja y el envio de avisos.

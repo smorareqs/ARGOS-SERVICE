@@ -1691,6 +1691,137 @@ components:
         requires_deposit:
           type: boolean
       type: object
+    ChatMessage:
+      additionalProperties: false
+      properties:
+        body:
+          type:
+            - string
+            - "null"
+        conversation_id:
+          format: uuid
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        file_url:
+          description: URL firmada de la foto (1 h).
+          type:
+            - string
+            - "null"
+        id:
+          format: uuid
+          type: string
+        mine:
+          description: Lo mando quien tiene la sesion.
+          type: boolean
+        sender_id:
+          description: Vacio en los mensajes del sistema.
+          type: string
+        sender_name:
+          type: string
+        sender_type:
+          enum:
+            - user
+            - guest
+            - system
+          type: string
+      required:
+        - id
+        - conversation_id
+        - sender_type
+        - sender_id
+        - sender_name
+        - body
+        - file_url
+        - created_at
+        - mine
+      type: object
+    ChatParticipant:
+      additionalProperties: false
+      properties:
+        id:
+          format: uuid
+          type: string
+        name:
+          type: string
+        photo_url:
+          type:
+            - string
+            - "null"
+        role:
+          type:
+            - string
+            - "null"
+        type:
+          enum:
+            - user
+            - guest
+          type: string
+      required:
+        - type
+        - id
+        - name
+        - role
+        - photo_url
+      type: object
+    ChatPerson:
+      additionalProperties: false
+      properties:
+        id:
+          format: uuid
+          type: string
+        name:
+          type: string
+        role:
+          type:
+            - string
+            - "null"
+      required:
+        - id
+        - name
+        - role
+      type: object
+    ChatReservation:
+      additionalProperties: false
+      properties:
+        check_in_date:
+          format: date
+          type: string
+        check_out_date:
+          format: date
+          type: string
+        code:
+          type: string
+        guest_name:
+          type: string
+        guests_count:
+          format: int64
+          type: integer
+        id:
+          format: uuid
+          type: string
+        property_code:
+          type: string
+        property_id:
+          format: uuid
+          type: string
+        property_name:
+          type: string
+        status:
+          type: string
+      required:
+        - id
+        - code
+        - property_id
+        - property_code
+        - property_name
+        - check_in_date
+        - check_out_date
+        - status
+        - guest_name
+        - guests_count
+      type: object
     CheckoutInput:
       additionalProperties: false
       properties:
@@ -1735,6 +1866,162 @@ components:
           $ref: "#/components/schemas/MapsConfig"
       required:
         - maps
+      type: object
+    CodeRead:
+      additionalProperties: false
+      properties:
+        attempts:
+          format: int64
+          type: integer
+        code_hint:
+          description: ••••12
+          type: string
+        device_id:
+          format: uuid
+          type: string
+        device_name:
+          type: string
+        id:
+          format: uuid
+          type: string
+        last_error:
+          type:
+            - string
+            - "null"
+        property_name:
+          type: string
+        reservation_code:
+          type: string
+        reservation_id:
+          format: uuid
+          type: string
+        status:
+          enum:
+            - scheduled
+            - active
+            - revoked
+            - failed
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+        valid_from:
+          format: date-time
+          type: string
+        valid_to:
+          format: date-time
+          type: string
+      required:
+        - id
+        - device_id
+        - device_name
+        - reservation_id
+        - reservation_code
+        - property_name
+        - code_hint
+        - valid_from
+        - valid_to
+        - status
+        - last_error
+        - attempts
+        - updated_at
+      type: object
+    Conversation:
+      additionalProperties: false
+      properties:
+        id:
+          format: uuid
+          type: string
+        is_archived:
+          type: boolean
+        kind:
+          enum:
+            - internal
+            - guest
+          type: string
+        last_message:
+          $ref: "#/components/schemas/ChatMessage"
+        last_message_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        muted:
+          type: boolean
+        participants:
+          items:
+            $ref: "#/components/schemas/ChatParticipant"
+          type:
+            - array
+            - "null"
+        reservation:
+          $ref: "#/components/schemas/ChatReservation"
+          description: Solo en las de huesped.
+        title:
+          type: string
+        unread:
+          format: int64
+          type: integer
+      required:
+        - id
+        - kind
+        - title
+        - reservation
+        - participants
+        - last_message
+        - last_message_at
+        - unread
+        - is_archived
+        - muted
+      type: object
+    ConversationCreate:
+      additionalProperties: true
+      properties:
+        kind:
+          description: Solo internal.
+          enum:
+            - internal
+          type: string
+        title:
+          description: Nombre del grupo; sin titulo y con una persona es 1:1.
+          maxLength: 128
+          type: string
+        user_ids:
+          items:
+            type: string
+          maxItems: 50
+          minItems: 1
+          type:
+            - array
+            - "null"
+      required:
+        - user_ids
+      type: object
+    ConversationMute:
+      additionalProperties: true
+      properties:
+        muted:
+          type: boolean
+      required:
+        - muted
+      type: object
+    ConversationPage:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/Conversation"
+          type:
+            - array
+            - "null"
+        next_cursor:
+          description: "Siempre null: llegan todas las vigentes."
+          type:
+            - string
+            - "null"
+      required:
+        - items
+        - next_cursor
       type: object
     CustodyItem:
       additionalProperties: false
@@ -2035,6 +2322,80 @@ components:
         - id
         - platform
       type: object
+    DeviceCreate:
+      additionalProperties: true
+      properties:
+        credentials:
+          description: Se guardan cifradas.
+          maxLength: 4000
+          type: string
+        external_id:
+          maxLength: 128
+          minLength: 1
+          type: string
+        name:
+          examples:
+            - Puerta principal
+          maxLength: 128
+          minLength: 1
+          type: string
+        property_id:
+          format: uuid
+          type: string
+        provider:
+          description: Por defecto nexxt.
+          enum:
+            - nexxt
+            - fake
+          type: string
+      required:
+        - property_id
+        - name
+        - external_id
+      type: object
+    DeviceRead:
+      additionalProperties: false
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        external_id:
+          description: Id de la cerradura en el proveedor.
+          type: string
+        has_credentials:
+          description: Las credenciales nunca se devuelven.
+          type: boolean
+        id:
+          format: uuid
+          type: string
+        is_active:
+          type: boolean
+        name:
+          type: string
+        property_code:
+          type: string
+        property_id:
+          format: uuid
+          type: string
+        property_name:
+          type: string
+        provider:
+          enum:
+            - nexxt
+            - fake
+          type: string
+      required:
+        - id
+        - property_id
+        - property_code
+        - property_name
+        - provider
+        - external_id
+        - name
+        - is_active
+        - has_credentials
+        - created_at
+      type: object
     DeviceRegister:
       additionalProperties: false
       properties:
@@ -2051,6 +2412,24 @@ components:
       required:
         - token
         - platform
+      type: object
+    DeviceUpdate:
+      additionalProperties: true
+      properties:
+        credentials:
+          description: Vacio las borra.
+          maxLength: 4000
+          type: string
+        external_id:
+          maxLength: 128
+          minLength: 1
+          type: string
+        is_active:
+          type: boolean
+        name:
+          maxLength: 128
+          minLength: 1
+          type: string
       type: object
     DocumentAttach:
       additionalProperties: true
@@ -3291,6 +3670,42 @@ components:
         - start
         - people
       type: object
+    GuestChat:
+      additionalProperties: false
+      properties:
+        id:
+          format: uuid
+          type: string
+        is_archived:
+          type: boolean
+        messages:
+          description: Los ultimos 100, antiguos primero.
+          items:
+            $ref: "#/components/schemas/ChatMessage"
+          type:
+            - array
+            - "null"
+        participants:
+          description: Quienes atienden.
+          items:
+            $ref: "#/components/schemas/ChatParticipant"
+          type:
+            - array
+            - "null"
+        title:
+          description: Nombre de la empresa.
+          type: string
+        unread:
+          format: int64
+          type: integer
+      required:
+        - id
+        - title
+        - participants
+        - messages
+        - unread
+        - is_archived
+      type: object
     GuestCreate:
       additionalProperties: true
       properties:
@@ -3491,6 +3906,51 @@ components:
         is_primary:
           type: boolean
       type: object
+    GuestLock:
+      additionalProperties: false
+      properties:
+        available:
+          description: "true: hay codigo y ya se puede mostrar."
+          type: boolean
+        code:
+          type:
+            - string
+            - "null"
+        device_name:
+          type:
+            - string
+            - "null"
+        has_lock:
+          description: La propiedad tiene cerradura inteligente.
+          type: boolean
+        message:
+          type: string
+        shows_at:
+          description: Desde cuando se vera el codigo.
+          format: date-time
+          type:
+            - string
+            - "null"
+        valid_from:
+          format: date-time
+          type:
+            - string
+            - "null"
+        valid_to:
+          format: date-time
+          type:
+            - string
+            - "null"
+      required:
+        - available
+        - code
+        - device_name
+        - valid_from
+        - valid_to
+        - shows_at
+        - message
+        - has_lock
+      type: object
     GuestMe:
       additionalProperties: false
       properties:
@@ -3504,7 +3964,7 @@ components:
         features:
           additionalProperties:
             type: boolean
-          description: parking, shared_areas, guest_chat.
+          description: parking, shared_areas, guest_chat, smart_locks.
           type: object
         guest_id:
           format: uuid
@@ -5083,6 +5543,35 @@ components:
         - role_key
         - role_name
       type: object
+    MessageCreate:
+      additionalProperties: true
+      properties:
+        body:
+          maxLength: 4000
+          type: string
+        file_id:
+          description: Foto subida con module=chat, kind=image.
+          format: uuid
+          type: string
+      type: object
+    MessagePage:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ChatMessage"
+          type:
+            - array
+            - "null"
+        next_cursor:
+          description: Para pedir los anteriores con ?before=.
+          type:
+            - string
+            - "null"
+      required:
+        - items
+        - next_cursor
+      type: object
     Metrics:
       additionalProperties: false
       properties:
@@ -6088,6 +6577,15 @@ components:
       required:
         - items
         - next_cursor
+      type: object
+    ParticipantAdd:
+      additionalProperties: true
+      properties:
+        user_id:
+          format: uuid
+          type: string
+      required:
+        - user_id
       type: object
     PeopleSet:
       additionalProperties: true
@@ -13630,6 +14128,425 @@ paths:
       summary: Editar el canal
       tags:
         - reservas
+  /api/v1/chat/conversations:
+    get:
+      description: "internal: donde participo. guest: las de huespedes de mis propiedades (chat.guest). Con mensajes nuevos primero; las archivadas salen 30 dias."
+      operationId: list-conversations
+      parameters:
+        - explode: false
+          in: query
+          name: kind
+          schema:
+            default: internal
+            enum:
+              - internal
+              - guest
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationPage"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Conversaciones
+      tags:
+        - chat
+    post:
+      description: Con una persona y sin titulo es 1:1 (si ya existe, devuelve esa). Con titulo o varias personas es un grupo.
+      operationId: create-conversation
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConversationCreate"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+          description: Created
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Nueva conversacion interna
+      tags:
+        - chat
+  /api/v1/chat/conversations/{conversation_id}:
+    get:
+      operationId: get-conversation
+      parameters:
+        - in: path
+          name: conversation_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+          description: OK
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Una conversacion
+      tags:
+        - chat
+  /api/v1/chat/conversations/{conversation_id}/messages:
+    get:
+      description: Los antiguos primero; next_cursor pide los anteriores con ?before=.
+      operationId: list-messages
+      parameters:
+        - in: path
+          name: conversation_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - description: next_cursor de la pagina anterior.
+          explode: false
+          in: query
+          name: before
+          schema:
+            description: next_cursor de la pagina anterior.
+            maxLength: 512
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 200
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessagePage"
+          description: OK
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Mensajes
+      tags:
+        - chat
+    post:
+      description: Texto y/o una foto (files module=chat, kind=image). Sale por tiempo real (chat.message) y push. 422 si esta archivada.
+      operationId: send-message
+      parameters:
+        - in: path
+          name: conversation_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageCreate"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatMessage"
+          description: Created
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Mandar un mensaje
+      tags:
+        - chat
+  /api/v1/chat/conversations/{conversation_id}/mute:
+    post:
+      operationId: mute-conversation
+      parameters:
+        - in: path
+          name: conversation_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConversationMute"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+          description: OK
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Silenciar o no el push
+      tags:
+        - chat
+  /api/v1/chat/conversations/{conversation_id}/participants:
+    post:
+      description: Un participante, o quien administra usuarios (tambien para unirse). Solo internas.
+      operationId: add-participant
+      parameters:
+        - in: path
+          name: conversation_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParticipantAdd"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+          description: OK
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Agregar a un grupo
+      tags:
+        - chat
+  /api/v1/chat/conversations/{conversation_id}/participants/{user_id}:
+    delete:
+      description: Uno mismo, quien lo creo o quien administra usuarios.
+      operationId: remove-participant
+      parameters:
+        - in: path
+          name: conversation_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - in: path
+          name: user_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Sacar de un grupo
+      tags:
+        - chat
+  /api/v1/chat/conversations/{conversation_id}/read:
+    post:
+      operationId: read-conversation
+      parameters:
+        - in: path
+          name: conversation_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Marcar como leida
+      tags:
+        - chat
+  /api/v1/chat/people:
+    get:
+      description: Quienes tienen chat interno en la empresa (menos yo).
+      operationId: chat-people
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/ChatPerson"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Personas para chatear
+      tags:
+        - chat
   /api/v1/checklist-templates:
     get:
       description: Con sus puntos en orden; la de por defecto primero.
@@ -14529,6 +15446,97 @@ paths:
       summary: Cancelar un bloque (hasta 1 h antes)
       tags:
         - huesped
+  /api/v1/guest/chat:
+    get:
+      description: La conversacion de la reserva (se crea la primera vez) con los ultimos 100 mensajes. 403 sin la bandera guest_chat.
+      operationId: guest-chat
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuestChat"
+          description: OK
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Forbidden
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Mi chat con la empresa
+      tags:
+        - huesped
+  /api/v1/guest/chat/messages:
+    post:
+      description: Solo texto. Llega al instante a la web y la app del personal.
+      operationId: guest-chat-send
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageCreate"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatMessage"
+          description: Created
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Forbidden
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Escribir a la empresa
+      tags:
+        - huesped
+  /api/v1/guest/chat/read:
+    post:
+      operationId: guest-chat-read
+      responses:
+        "204":
+          description: No Content
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Forbidden
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Marcar mi chat como leido
+      tags:
+        - huesped
   /api/v1/guest/device:
     post:
       operationId: guest-device
@@ -14550,6 +15558,28 @@ paths:
       security:
         - bearerAuth: []
       summary: Registrar el telefono para push
+      tags:
+        - huesped
+  /api/v1/guest/lock:
+    get:
+      description: "Desde 24 h antes de la entrada y hasta 2 h despues de la salida. Sin cerradura: has_lock=false y un mensaje."
+      operationId: guest-lock
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuestLock"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: El codigo de mi puerta
       tags:
         - huesped
   /api/v1/guest/me:
@@ -15826,6 +16856,201 @@ paths:
       summary: Editar la bodega
       tags:
         - inventario
+  /api/v1/locks/codes:
+    get:
+      description: Estado de cada codigo (solo los dos ultimos digitos).
+      operationId: list-lock-codes
+      parameters:
+        - description: Solo esa reserva.
+          explode: false
+          in: query
+          name: reservation_id
+          schema:
+            description: Solo esa reserva.
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/CodeRead"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Codigos de acceso
+      tags:
+        - cerraduras
+  /api/v1/locks/devices:
+    get:
+      operationId: list-lock-devices
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/DeviceRead"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Cerraduras
+      tags:
+        - cerraduras
+    post:
+      operationId: create-lock-device
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceCreate"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceRead"
+          description: Created
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Registrar una cerradura
+      tags:
+        - cerraduras
+  /api/v1/locks/devices/{device_id}:
+    patch:
+      operationId: update-lock-device
+      parameters:
+        - in: path
+          name: device_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceUpdate"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceRead"
+          description: OK
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Editar una cerradura
+      tags:
+        - cerraduras
+  /api/v1/locks/reservations/{reservation_id}/provision:
+    post:
+      description: Si una cerradura falla, su codigo queda en failed con last_error.
+      operationId: provision-lock-codes
+      parameters:
+        - in: path
+          name: reservation_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/CodeRead"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Generar o reintentar los codigos de una reserva
+      tags:
+        - cerraduras
   /api/v1/maintenance/assignables:
     get:
       description: Miembros activos con maintenance.execute, los menos cargados primero.

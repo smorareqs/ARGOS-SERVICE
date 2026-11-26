@@ -16,10 +16,13 @@ import (
 	"github.com/smorareqs/argos-service/internal/core/mail"
 	"github.com/smorareqs/argos-service/internal/modules/attendance"
 	"github.com/smorareqs/argos-service/internal/modules/billing"
+	"github.com/smorareqs/argos-service/internal/modules/chat"
+	"github.com/smorareqs/argos-service/internal/modules/locks"
 	"github.com/smorareqs/argos-service/internal/modules/maintenance"
 	"github.com/smorareqs/argos-service/internal/modules/metrics"
 	"github.com/smorareqs/argos-service/internal/modules/notifications"
 	"github.com/smorareqs/argos-service/internal/modules/reservations"
+	"github.com/smorareqs/argos-service/internal/modules/retention"
 	"github.com/smorareqs/argos-service/internal/modules/securityops"
 	"github.com/smorareqs/argos-service/internal/modules/tasks"
 )
@@ -67,7 +70,14 @@ func NewJobRegistry(svc Services, mailer *mail.Service) *jobs.Registry {
 	r.Register(reservations.JobStatus, svc.Reservations.HandleJob)
 	r.Every(reservations.JobStatus, time.Hour)
 	r.Register(reservations.JobReminder, svc.Reservations.HandleJob)
+	// Fase 6 (Persona B): la retencion completa marca evidencias de 24 meses y
+	// borra avisos leidos y trabajos viejos antes de borrar los archivos.
 	r.Register(jobs.TypeRetentionCleanup, func(ctx context.Context, _ jobs.Running) error {
+		if svc.Retention != nil {
+			if _, err := svc.Retention.Run(ctx); err != nil {
+				return err
+			}
+		}
 		_, err := svc.Files.Retention(ctx)
 		return err
 	})
@@ -94,6 +104,18 @@ func NewJobRegistry(svc Services, mailer *mail.Service) *jobs.Registry {
 	r.Every(metrics.JobSnapshot, 24*time.Hour)
 	r.Register(metrics.JobEvaluate, svc.Metrics.HandleJob)
 	r.Every(metrics.JobEvaluate, 24*time.Hour)
+	// Fase 6 (Persona B): push de chat, archivo de chats de huespedes que ya
+	// salieron, codigos de cerradura y el pulso del worker en el log.
+	r.Register(notifications.JobSendUserPush, svc.Notifications.HandleJob)
+	r.Register(chat.JobArchive, svc.Chat.HandleJob)
+	r.Every(chat.JobArchive, time.Hour)
+	r.Register(locks.JobProvision, svc.Locks.HandleJob)
+	r.Register(locks.JobRevoke, svc.Locks.HandleJob)
+	r.Register(retention.JobWorkerStats, func(ctx context.Context, _ jobs.Running) error {
+		_, err := svc.Retention.WorkerStats(ctx)
+		return err
+	})
+	r.Every(retention.JobWorkerStats, 5*time.Minute)
 	return r
 }
 

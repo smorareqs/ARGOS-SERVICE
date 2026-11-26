@@ -23,7 +23,7 @@ import (
 
 type demoArea struct {
 	building, name, opens, closes, rules, photo string
-	capacity, block, maxPerDay, advance           int
+	capacity, block, maxPerDay, advance         int
 }
 
 var demoAreas = map[string][]demoArea{

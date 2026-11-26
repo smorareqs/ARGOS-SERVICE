@@ -10,7 +10,9 @@ import (
 
 	"github.com/smorareqs/argos-service/internal/api"
 	"github.com/smorareqs/argos-service/internal/core/database"
+	"github.com/smorareqs/argos-service/internal/modules/chat"
 	"github.com/smorareqs/argos-service/internal/modules/guestaccess"
+	"github.com/smorareqs/argos-service/internal/modules/locks"
 	"github.com/smorareqs/argos-service/internal/modules/parking"
 	"github.com/smorareqs/argos-service/internal/modules/sharedareas"
 )
@@ -91,7 +93,7 @@ type guestTicketOutput struct {
 }
 type guestDeviceInput struct{ Body guestaccess.GuestDeviceInput }
 
-func registerGuest(v1 huma.API, svc *guestaccess.Service) {
+func registerGuest(v1 huma.API, svc *guestaccess.Service, chatSvc *chat.Service, lockSvc *locks.Service) {
 	grp := huma.NewGroup(v1)
 	grp.UseSimpleModifier(func(op *huma.Operation) {
 		op.Tags = []string{"huesped"}
@@ -184,4 +186,5 @@ func registerGuest(v1 huma.API, svc *guestaccess.Service) {
 	}, asGuest(func(ctx context.Context, p guestaccess.Principal, in *guestDeviceInput) (*struct{}, error) {
 		return noContent(svc.Device(ctx, p, in.Body))
 	}))
+	registerGuestChat(secured, chatSvc, lockSvc)
 }
