@@ -14,8 +14,10 @@ import (
 	"github.com/smorareqs/argos-service/internal/core/database"
 	"github.com/smorareqs/argos-service/internal/core/jobs"
 	"github.com/smorareqs/argos-service/internal/core/mail"
+	"github.com/smorareqs/argos-service/internal/modules/attendance"
 	"github.com/smorareqs/argos-service/internal/modules/billing"
 	"github.com/smorareqs/argos-service/internal/modules/maintenance"
+	"github.com/smorareqs/argos-service/internal/modules/metrics"
 	"github.com/smorareqs/argos-service/internal/modules/notifications"
 	"github.com/smorareqs/argos-service/internal/modules/reservations"
 	"github.com/smorareqs/argos-service/internal/modules/securityops"
@@ -84,6 +86,14 @@ func NewJobRegistry(svc Services, mailer *mail.Service) *jobs.Registry {
 	r.Register(notifications.JobSendGuestPush, svc.Notifications.HandleJob, jobs.ScrubPayload())
 	r.Register(securityops.JobAlarms, svc.Security.HandleJob)
 	r.Every(securityops.JobAlarms, time.Minute)
+	// Fase 5 (Persona B): marcajes sin salida cada 15 min; foto del desempeno
+	// e incentivos de las metas una vez al dia.
+	r.Register(attendance.JobAutoclose, svc.Attendance.HandleJob)
+	r.Every(attendance.JobAutoclose, 15*time.Minute)
+	r.Register(metrics.JobSnapshot, svc.Metrics.HandleJob)
+	r.Every(metrics.JobSnapshot, 24*time.Hour)
+	r.Register(metrics.JobEvaluate, svc.Metrics.HandleJob)
+	r.Every(metrics.JobEvaluate, 24*time.Hour)
 	return r
 }
 

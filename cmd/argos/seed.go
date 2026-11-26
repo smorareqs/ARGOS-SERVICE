@@ -157,6 +157,7 @@ func seedPhases(ctx context.Context, services app.Services, db *database.DB, ids
 		func() error { return seedReservations(ctx, services, db, ids) },
 		func() error { return seedTasks(ctx, services, ids) },
 		func() error { return seedGuestOps(ctx, services, ids) },
+		func() error { return seedAttendance(ctx, services, ids) },
 		func() error { return seedHR(ctx, services, ids) },
 		func() error { return seedBilling(ctx, db, ids) },
 		func() error { return seedInvitations(ctx, services, db, ids) },

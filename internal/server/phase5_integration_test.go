@@ -109,12 +109,29 @@ func TestPayrollCycle(t *testing.T) {
 	})
 	expect(t, res, http.StatusUnprocessableEntity)
 
+	// Asistencia (Persona B): Luis 8 h de lunes a viernes (10 dias) y Sofia
+	// 4 h los lunes y miercoles (4 dias, 16 h). Un dia de 3 h no cuenta como dia.
+	punch := func(employee, date, in, out string) {
+		t.Helper()
+		expect(t, o.do(http.MethodPost, "/api/v1/attendance", o.admin, map[string]any{
+			"employee_id": employee, "clock_in_at": date + "T" + in + ":00-06:00", "clock_out_at": date + "T" + out + ":00-06:00",
+			"edit_reason": "Carga de la quincena",
+		}), http.StatusCreated)
+	}
+	for _, d := range []string{"02", "03", "04", "05", "06", "09", "10", "11", "12", "13"} {
+		punch(luis, "2026-11-"+d, "08:00", "16:00")
+	}
+	punch(luis, "2026-11-14", "08:00", "11:00")
+	for _, d := range []string{"02", "04", "09", "11"} {
+		punch(sofia, "2026-11-"+d, "08:00", "12:00")
+	}
+
 	base := "/api/v1/payroll/periods/" + period
 	res = o.do(http.MethodPost, base+"/compute", o.admin, nil)
 	expect(t, res, http.StatusOK)
 	src := res.body["sources"].(map[string]any)
-	if src["attendance"] != false || src["tasks"] != true {
-		t.Fatalf("sin asistencia el calculo usa el horario; las tareas ya existen (Persona B): %v", src)
+	if src["attendance"] != true || src["tasks"] != true {
+		t.Fatalf("con asistencia y tareas (Persona B) el calculo las usa: %v", src)
 	}
 	// Salario fijo: 7800 / 2; IGSS 4.83 % de la base; bonificacion incentivo 125.
 	j := entryOf(res.body, jorge)
@@ -122,12 +139,12 @@ func TestPayrollCycle(t *testing.T) {
 		num(j["gross_amount"]) != 4025 || num(j["net_amount"]) != 3836.63 {
 		t.Fatalf("salario fijo: %v", j)
 	}
-	// Por dia sin horario: lunes a viernes (1 nov 2026 es domingo → 10 dias).
+	// Por dia con marcajes: 10 dias de 8 h (el de 3 h no llega al minimo de 4 h).
 	l := entryOf(res.body, luis)
-	if num(l["days_worked"]) != 10 || num(l["base_amount"]) != 2600 || l["attendance_source"] != "schedule" {
+	if num(l["days_worked"]) != 10 || num(l["base_amount"]) != 2600 || l["attendance_source"] != "attendance" {
 		t.Fatalf("por día: %v", l)
 	}
-	// Por hora fuera de planilla: lunes y miercoles 4 h (2+2, 4+4... 4 dias) sin IGSS ni bonificacion.
+	// Por hora fuera de planilla: lunes y miercoles 4 h (4 dias marcados) sin IGSS ni bonificacion.
 	s := entryOf(res.body, sofia)
 	if num(s["hours_worked"]) != 16 || num(s["base_amount"]) != 608 || num(s["igss_employee"]) != 0 || num(s["incentive_bonus_amount"]) != 0 {
 		t.Fatalf("por hora fuera de planilla: %v", s)

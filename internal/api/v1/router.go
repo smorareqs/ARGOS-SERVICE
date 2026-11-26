@@ -48,4 +48,6 @@ func Register(humaAPI huma.API, svc app.Services) {
 	registerSharedAreas(v1, svc.SharedAreas, guard)
 	registerSecurity(v1, svc.Security, guard)
 	registerGuest(v1, svc.GuestAccess)
+	registerAttendance(v1, svc.Attendance, guard)
+	registerMetrics(v1, svc.Metrics, guard)
 }

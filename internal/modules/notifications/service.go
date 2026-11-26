@@ -45,6 +45,9 @@ const (
 	TypeChatMessage       = "chat_message"
 	TypeGuestCheckedIn    = "guest_checked_in"
 	TypeReservationChange = "reservation_changed"
+	// Fase 5 (Persona B): marcaje cerrado solo a las 16 h e incentivos por aprobar.
+	TypeAttendanceAutoclosed = "attendance_autoclosed"
+	TypeIncentivePending     = "incentive_pending"
 )
 
 // Critical son los avisos que no se pueden apagar (fase03 §2).
@@ -167,6 +170,9 @@ var Labels = map[string]string{
 	TypeChatMessage:       "Mensajes de chat",
 	TypeGuestCheckedIn:    "Llegadas de huéspedes",
 	TypeReservationChange: "Cambios en reservas",
+
+	TypeAttendanceAutoclosed: "Marcajes sin salida",
+	TypeIncentivePending:     "Incentivos por aprobar",
 }
 
 // Service es la bandeja y el envio de avisos.

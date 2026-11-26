@@ -122,6 +122,9 @@ empresa e intentos. Los errores no controlados se registran con su detalle; al c
 | `send_push` | Al crear un aviso | Manda el push a los teléfonos del usuario (FCM). Los tokens que FCM rechaza se borran. |
 | `security_alarms` | 1 min, por empresa con `reservations` | Hace sonar las alarmas de salida que llegaron a su hora (aviso crítico `checkout_alarm` a quien tiene `security.dashboard`) y, si nadie las atiende en 60 min, levanta la alerta `checkout_alarm_unattended` (una vez). |
 | `send_guest_push` | Al confirmar un bloque de área común | Push al teléfono del huésped (token de `POST /guest/device`). Si FCM rechaza el token no se reintenta. |
+| `attendance_autoclose` | 15 min, por empresa | Cierra a las 16 h los marcajes sin salida (`autoclosed = true`), deja la bitácora y avisa a quien tiene `hr.attendance.manage` (`attendance_autoclosed`) y al colaborador. |
+| `performance_snapshot` | 24 h, por empresa | Guarda en `performance_snapshots` las cifras de ayer por colaborador (limpiezas, minutos, checklist, retrasos, devueltas, reportes y diferencias abiertas). Es idempotente. |
+| `incentive_evaluation` | 24 h, por empresa | Revisa cada meta activa en la última semana o el último mes cerrado y crea los incentivos `pending` de quien la cumplió (uno por meta, persona y período). Si hubo nuevos, avisa a quien tiene `hr.payroll.manage`. |
 
 ### Avisos y tiempo real
 
@@ -156,6 +159,24 @@ empresa e intentos. Los errores no controlados se registran con su detalle; al c
 - **Datos de prueba:** `seed demo-tenant` deja espacios, áreas, placas, bloques y un huésped en
   casa por empresa con código fijo (`HUESPED-GAR` en Garrent y `HUESPED-CST` en Costa Limpia; el
   correo se imprime al sembrar).
+
+### Asistencia, métricas e incentivos (fase 5)
+
+- **Marcaje:** `POST /attendance/clock-in` y `/clock-out` piden GPS (lat y lng; 0,0 se rechaza) y
+  una foto opcional subida con módulo `attendance` y tipo `selfie` (solo la ve RRHH). Un
+  colaborador tiene a lo sumo una entrada abierta (`uq_attendance_records_open`).
+- **Correcciones:** `POST /attendance` (a mano; cierra la entrada abierta de ese día si la hay) y
+  `PATCH /attendance/{id}` exigen motivo, no aceptan horas futuras ni turnos de más de 24 h, no
+  se pueden cruzar con otro marcaje y quedan en la bitácora con el antes y el después.
+- **Nómina:** al existir `attendance_records`, el cálculo de Persona A toma días y horas de los
+  marcajes cerrados (`attendance_source = attendance`) y ya no del horario. Un día cuenta si
+  suma al menos `min_minutes_for_day`.
+- **Métricas:** salen de las limpiezas en `done` o `validated`, del día en que terminaron (hora
+  de la empresa). El propietario solo ve sus propiedades. El ranking compara solo dentro del
+  mismo rol.
+- **Datos de prueba:** `seed demo-tenant` deja marcajes de los dos últimos meses según el horario
+  (con retrasos y ausencias), tres metas, las fotos diarias de 30 días y los incentivos del
+  último período cerrado. Corre antes de la nómina de demostración.
 
 ### Pendiente de Persona B
 

@@ -22,6 +22,7 @@ import (
 	"github.com/smorareqs/argos-service/internal/modules/alerts"
 	"github.com/smorareqs/argos-service/internal/modules/apikeys"
 	"github.com/smorareqs/argos-service/internal/modules/appsync"
+	"github.com/smorareqs/argos-service/internal/modules/attendance"
 	"github.com/smorareqs/argos-service/internal/modules/audit"
 	"github.com/smorareqs/argos-service/internal/modules/auth"
 	"github.com/smorareqs/argos-service/internal/modules/authz"
@@ -35,6 +36,7 @@ import (
 	"github.com/smorareqs/argos-service/internal/modules/health"
 	"github.com/smorareqs/argos-service/internal/modules/inventory"
 	"github.com/smorareqs/argos-service/internal/modules/maintenance"
+	"github.com/smorareqs/argos-service/internal/modules/metrics"
 	"github.com/smorareqs/argos-service/internal/modules/notifications"
 	"github.com/smorareqs/argos-service/internal/modules/parking"
 	"github.com/smorareqs/argos-service/internal/modules/payroll"
@@ -91,6 +93,9 @@ type Services struct {
 	Parking     *parking.Service
 	SharedAreas *sharedareas.Service
 	Security    *securityops.Service
+	// Fase 5 (Persona B): marcaje, metricas, metas e incentivos.
+	Attendance *attendance.Service
+	Metrics    *metrics.Service
 }
 
 // ClientConfig es lo que la web pide al iniciar sesion (GET /client-config).
@@ -221,6 +226,9 @@ func NewServices(cfg config.Config, db *database.DB, log *slog.Logger) (Services
 		Parking:     park,
 		SharedAreas: areas,
 		Security:    sec,
+
+		Attendance: attendance.NewService(db, notif, log.With("module", "attendance")),
+		Metrics:    metrics.NewService(db, notif, log.With("module", "metrics")),
 	}, nil
 }
 

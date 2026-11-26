@@ -93,6 +93,11 @@ var Rules = map[string]Rule{
 		Upload: authz.HRDisciplinaryManage, Read: []authz.Permission{authz.HRDisciplinaryManage},
 		Types: append([]string{"application/pdf"}, imageTypes...), MaxBytes: 15 << 20,
 	},
+	// Foto opcional al marcar entrada o salida (fase 5, Persona B, app B15).
+	// Solo la ve quien administra la asistencia.
+	"attendance/selfie": {
+		Upload: authz.HRAttendanceOwn, Read: []authz.Permission{authz.HRAttendanceManage}, Types: imageTypes, MaxBytes: 5 << 20,
+	},
 }
 
 // Errores del modulo.
