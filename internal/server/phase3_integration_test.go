@@ -175,9 +175,14 @@ func TestTicketLifecycle(t *testing.T) {
 		published = append(published, ev.Type)
 		return nil
 	})
-	task := uuid.New()
-	e.svc.Maintenance.SetTaskLinker(func(context.Context, database.Querier, authz.Actor, maintenance.TicketRead) (*uuid.UUID, error) {
-		return &task, nil
+	// El linker real (tareas, Persona B) crea la tarea; se guarda su id.
+	var task uuid.UUID
+	e.svc.Maintenance.SetTaskLinker(func(ctx context.Context, q database.Querier, a authz.Actor, tk maintenance.TicketRead) (*uuid.UUID, error) {
+		id, err := e.svc.Tasks.LinkTicket(ctx, q, a, tk)
+		if id != nil {
+			task = *id
+		}
+		return id, err
 	})
 
 	photo := o.upload(o.cleaner, "ticket_photo", "image/jpeg", "fuga.jpg")
@@ -471,7 +476,7 @@ func TestLowStockJob(t *testing.T) {
 		}
 		return q.QueryRow(ctx, `
 			WITH w AS (INSERT INTO warehouses (name) VALUES ('Bodega central') RETURNING id),
-			     i AS (INSERT INTO inventory_items (name, unit, min_stock) VALUES ('Toallas', 'pza', 10) RETURNING id)
+			     i AS (INSERT INTO inventory_items (name, category, unit, min_stock) VALUES ('Toallas', 'linens', 'pza', 10) RETURNING id)
 			INSERT INTO inventory_stock (warehouse_id, item_id, quantity) SELECT w.id, i.id, 3 FROM w, i RETURNING item_id`).Scan(&towels)
 	}); err != nil {
 		t.Fatal(err)
@@ -572,7 +577,7 @@ func TestMetricsAndDashboard(t *testing.T) {
 	if status["TB-504"] != "incident" || status["CY-12A"] != "ready" {
 		t.Errorf("pines: %v", status)
 	}
-	if len(d.body["activity"].([]any)) == 0 || d.body["tasks"].(map[string]any)["available"] != false {
+	if len(d.body["activity"].([]any)) == 0 || d.body["tasks"].(map[string]any)["available"] != true {
 		t.Errorf("actividad y tareas: %v %v", d.body["activity"], d.body["tasks"])
 	}
 

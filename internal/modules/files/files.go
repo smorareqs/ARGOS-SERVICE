@@ -75,6 +75,18 @@ var Rules = map[string]Rule{
 	"reservations/inspection_photo": {
 		Upload: authz.TasksValidate, Read: []authz.Permission{authz.ReservationsRead}, Types: imageTypes, MaxBytes: 8 << 20,
 	},
+	// Fotos de la ejecucion de tareas (fase 2, Persona B, app B4): antes,
+	// despues y evidencia de cada punto del checklist (entity_type
+	// task_checklist_item) o de la tarea (entity_type task).
+	"tasks/before": {
+		Upload: authz.TasksExecute, Read: []authz.Permission{authz.TasksRead}, Types: imageTypes, MaxBytes: 8 << 20,
+	},
+	"tasks/after": {
+		Upload: authz.TasksExecute, Read: []authz.Permission{authz.TasksRead}, Types: imageTypes, MaxBytes: 8 << 20,
+	},
+	"tasks/evidence": {
+		Upload: authz.TasksExecute, Read: []authz.Permission{authz.TasksRead}, Types: imageTypes, MaxBytes: 8 << 20,
+	},
 	// Adjuntos de acciones disciplinarias (fase 5, W-J4). El colaborador los ve
 	// por GET /disciplinary/me, que firma las URL de las suyas.
 	"disciplinary/attachment": {

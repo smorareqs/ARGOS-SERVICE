@@ -31,6 +31,11 @@ argos migrate shared down                # revierte la última (solo en emergenc
 * `shared` va primero; la API no arranca si `shared` tiene pendientes.
 * Una empresa nueva recibe todas las migraciones de tenant al crearse.
 * Nunca se edita una migración publicada: se agrega otra (numeración en `reparto.md` §5).
+* Las migraciones de Persona B (`0003_tasks_inventory`, `0005`, `0007`, `0009`, `0010`) llevan los
+  números que les reservó `reparto.md`, que quedan *antes* de las de Persona A ya aplicadas. Una base
+  que ya tenía `0004`–`0008` las rechaza ("ya hay una posterior"): en local se recrea
+  (`docker compose down -v` y `argos migrate up` + `argos seed demo-tenant`). No había ningún
+  ambiente con datos reales cuando se agregaron.
 
 ## 3. Crear una empresa
 
@@ -107,7 +112,13 @@ Los registros son JSON. Cada petición deja una línea `HTTP` con `method`, `pat
 empresa e intentos. Los errores no controlados se registran con su detalle; al cliente solo llega
 "Error interno del servidor."
 
-## 9. Pendiente de Persona B
+## 9. Trabajos de Persona B
+
+| Trabajo | Cada | Qué hace |
+| --- | --- | --- |
+| `mark_late_tasks` | 5 min, por empresa | Marca `is_late` en la hora local de la empresa (no se inició a la hora de inicio o no se terminó a la de fin), deja el evento `late` y publica `task.late`. |
+
+### Pendiente de Persona B
 
 Retención completa (evidencias, notificaciones leídas, trabajos terminados), cerraduras
 (`lock_provision`, `lock_revoke`) y métricas del worker: se documentan aquí cuando estén.

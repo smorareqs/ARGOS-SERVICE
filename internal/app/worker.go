@@ -17,6 +17,7 @@ import (
 	"github.com/smorareqs/argos-service/internal/modules/billing"
 	"github.com/smorareqs/argos-service/internal/modules/maintenance"
 	"github.com/smorareqs/argos-service/internal/modules/reservations"
+	"github.com/smorareqs/argos-service/internal/modules/tasks"
 )
 
 // NewMail construye el servicio de correo con el driver configurado.
@@ -70,6 +71,9 @@ func NewJobRegistry(svc Services, mailer *mail.Service) *jobs.Registry {
 	// Fase 6 (Persona A): facturacion diaria (factura, vence, suspende).
 	r.Register(billing.JobCycle, svc.Billing.HandleJob)
 	r.Every(billing.JobCycle, 24*time.Hour)
+	// Fase 2 (Persona B): tareas retrasadas cada 5 minutos por empresa.
+	r.Register(tasks.JobMarkLate, svc.Tasks.HandleJob)
+	r.Every(tasks.JobMarkLate, 5*time.Minute)
 	return r
 }
 

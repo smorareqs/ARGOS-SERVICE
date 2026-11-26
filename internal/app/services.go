@@ -32,10 +32,12 @@ import (
 	"github.com/smorareqs/argos-service/internal/modules/employees"
 	"github.com/smorareqs/argos-service/internal/modules/files"
 	"github.com/smorareqs/argos-service/internal/modules/health"
+	"github.com/smorareqs/argos-service/internal/modules/inventory"
 	"github.com/smorareqs/argos-service/internal/modules/maintenance"
 	"github.com/smorareqs/argos-service/internal/modules/payroll"
 	"github.com/smorareqs/argos-service/internal/modules/properties"
 	"github.com/smorareqs/argos-service/internal/modules/reservations"
+	"github.com/smorareqs/argos-service/internal/modules/tasks"
 	"github.com/smorareqs/argos-service/internal/modules/tenants"
 )
 
@@ -71,6 +73,9 @@ type Services struct {
 	APIKeyLimiter *ratelimit.Limiter
 	// Configuracion que necesita el cliente web (mapa real).
 	Client ClientConfig
+	// Fase 2 (Persona B): itinerario y tareas, inventario.
+	Inventory *inventory.Service
+	Tasks     *tasks.Service
 }
 
 // ClientConfig es lo que la web pide al iniciar sesion (GET /client-config).
@@ -130,6 +135,15 @@ func NewServices(cfg config.Config, db *database.DB, log *slog.Logger) (Services
 	tenantSvc := tenants.NewService(db, tenantMigrations, log.With("module", "tenants"),
 		tenants.WithAuth(authSvc), tenants.WithStorage(store))
 	tenantSvc.SetBilling(bill)
+	dash := dashboard.NewService(db, maint, log.With("module", "dashboard"))
+	// Fase 2 (Persona B): tareas se engancha a propiedades (acceso del dia),
+	// mantenimiento (tarea de la incidencia), el Inicio y las reservas.
+	inv := inventory.NewService(db, bus, log.With("module", "inventory"))
+	taskSvc := tasks.NewService(db, bus, inv, maint, log.With("module", "tasks"))
+	props.SetAccessGate(taskSvc.AccessGate)
+	maint.SetTaskLinker(taskSvc.LinkTicket)
+	dash.SetTasksSource(taskSvc.TodayBlock)
+	taskSvc.Subscribe(bus)
 	return Services{
 		Health: health.NewService(db, string(cfg.Environment)).WithReadiness(health.Readiness{
 			DB: db, Storage: store, Shared: sharedMigrations, Tenant: tenantMigrations,
@@ -149,7 +163,7 @@ func NewServices(cfg config.Config, db *database.DB, log *slog.Logger) (Services
 		Events:      bus,
 		Alerts:      alertsSvc,
 		Maintenance: maint,
-		Dashboard:   dashboard.NewService(db, maint, log.With("module", "dashboard")),
+		Dashboard:   dash,
 
 		Reservations: res,
 
@@ -160,6 +174,9 @@ func NewServices(cfg config.Config, db *database.DB, log *slog.Logger) (Services
 		APIKeys:       apikeys.NewService(db, log.With("module", "apikeys")),
 		APIKeyLimiter: ratelimit.PerMinute(cfg.RateLimitAPIKey),
 		Client:        ClientConfig{MapsKey: cfg.GoogleMapsKey, MapsMapID: cfg.GoogleMapsMapID},
+
+		Inventory: inv,
+		Tasks:     taskSvc,
 	}, nil
 }
 

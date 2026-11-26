@@ -864,6 +864,13 @@ components:
           type:
             - array
             - "null"
+        inventory_items:
+          description: Articulos activos del inventario (requiere inventory.read).
+          items:
+            $ref: "#/components/schemas/InventoryItem"
+          type:
+            - array
+            - "null"
         properties:
           items:
             $ref: "#/components/schemas/PropertyRead"
@@ -892,6 +899,7 @@ components:
         - checklist_templates
         - schedule
         - assets
+        - inventory_items
       type: object
     BuildingCreate:
       additionalProperties: true
@@ -1212,6 +1220,62 @@ components:
           $ref: "#/components/schemas/MapsConfig"
       required:
         - maps
+      type: object
+    CustodyItem:
+      additionalProperties: false
+      properties:
+        category:
+          type: string
+        item_id:
+          format: uuid
+          type: string
+        item_name:
+          type: string
+        person_id:
+          format: uuid
+          type: string
+        person_name:
+          type: string
+        qty:
+          format: double
+          type: number
+        returnable:
+          type: boolean
+        since:
+          format: date-time
+          type: string
+        unit:
+          type: string
+      required:
+        - person_id
+        - person_name
+        - item_id
+        - item_name
+        - category
+        - returnable
+        - unit
+        - qty
+        - since
+      type: object
+    CustodyReturn:
+      additionalProperties: false
+      properties:
+        item_id:
+          format: uuid
+          type: string
+        qty:
+          description: Vacio = todo.
+          exclusiveMinimum: 0
+          format: double
+          type: number
+        warehouse_id:
+          description: Vacio = la central.
+          format: uuid
+          type:
+            - string
+            - "null"
+      required:
+        - item_id
       type: object
     Dashboard:
       additionalProperties: false
@@ -2853,6 +2917,305 @@ components:
         - photos
         - findings
       type: object
+    InventoryDecision:
+      additionalProperties: false
+      properties:
+        note:
+          maxLength: 1000
+          type:
+            - string
+            - "null"
+        status:
+          type: string
+      required:
+        - status
+      type: object
+    InventoryDiscrepancy:
+      additionalProperties: false
+      properties:
+        at:
+          format: date-time
+          type: string
+        expected:
+          format: double
+          type: number
+        id:
+          format: uuid
+          type: string
+        item_id:
+          format: uuid
+          type: string
+        item_name:
+          type: string
+        note:
+          type:
+            - string
+            - "null"
+        person_id:
+          format: uuid
+          type: string
+        person_name:
+          type: string
+        property_code:
+          type: string
+        returned:
+          format: double
+          type: number
+        status:
+          enum:
+            - open
+            - justified
+            - closed
+          type: string
+        task_id:
+          format: uuid
+          type:
+            - string
+            - "null"
+        task_number:
+          description: 0 si no viene de una tarea.
+          format: int64
+          type: integer
+      required:
+        - id
+        - status
+        - person_id
+        - person_name
+        - item_id
+        - item_name
+        - expected
+        - returned
+        - task_id
+        - task_number
+        - property_code
+        - at
+        - note
+      type: object
+    InventoryItem:
+      additionalProperties: false
+      properties:
+        category:
+          enum:
+            - linens
+            - amenities
+            - cleaning
+            - kitchen
+            - keys
+          type: string
+        id:
+          format: uuid
+          type: string
+        is_active:
+          type: boolean
+        min:
+          description: Existencia minima por bodega (alerta low_stock).
+          format: double
+          type: number
+        name:
+          type: string
+        returnable:
+          description: Se devuelve completo al cerrar una tarea (blancos, llaves).
+          type: boolean
+        sku:
+          type: string
+        total:
+          description: Existencia sumada de todas las bodegas.
+          format: double
+          type: number
+        unit:
+          type: string
+      required:
+        - id
+        - sku
+        - name
+        - category
+        - unit
+        - min
+        - total
+        - returnable
+        - is_active
+      type: object
+    InventoryItemCreate:
+      additionalProperties: false
+      properties:
+        category:
+          enum:
+            - linens
+            - amenities
+            - cleaning
+            - kitchen
+            - keys
+          type: string
+        min:
+          format: double
+          minimum: 0
+          type: number
+        name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        returnable:
+          description: "Por defecto: blancos y llaves."
+          type: boolean
+        sku:
+          maxLength: 32
+          type: string
+        unit:
+          maxLength: 16
+          minLength: 1
+          type: string
+      required:
+        - sku
+        - name
+        - category
+        - unit
+        - min
+      type: object
+    InventoryItemUpdate:
+      additionalProperties: false
+      properties:
+        category:
+          enum:
+            - linens
+            - amenities
+            - cleaning
+            - kitchen
+            - keys
+          type: string
+        is_active:
+          type: boolean
+        min:
+          format: double
+          minimum: 0
+          type: number
+        name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        returnable:
+          type: boolean
+        sku:
+          maxLength: 32
+          type:
+            - string
+            - "null"
+        unit:
+          maxLength: 16
+          minLength: 1
+          type: string
+      type: object
+    InventoryMovement:
+      additionalProperties: false
+      properties:
+        at:
+          format: date-time
+          type: string
+        id:
+          format: uuid
+          type: string
+        item_id:
+          format: uuid
+          type: string
+        item_name:
+          type: string
+        note:
+          type:
+            - string
+            - "null"
+        person:
+          description: Colaborador de la custodia o quien lo registro.
+          type:
+            - string
+            - "null"
+        qty:
+          format: double
+          type: number
+        task_number:
+          format: int64
+          type:
+            - integer
+            - "null"
+        type:
+          enum:
+            - entry
+            - checkout
+            - return
+            - transfer
+            - adjustment
+            - consumption
+          type: string
+        warehouse:
+          description: La bodega (en traslados, origen → destino).
+          type: string
+      required:
+        - id
+        - at
+        - type
+        - item_id
+        - item_name
+        - qty
+        - warehouse
+        - person
+        - task_number
+        - note
+      type: object
+    InventorySnapshot:
+      additionalProperties: false
+      properties:
+        custody:
+          items:
+            $ref: "#/components/schemas/CustodyItem"
+          type:
+            - array
+            - "null"
+        discrepancies:
+          description: Abiertas y las 100 mas recientes.
+          items:
+            $ref: "#/components/schemas/InventoryDiscrepancy"
+          type:
+            - array
+            - "null"
+        items:
+          items:
+            $ref: "#/components/schemas/InventoryItem"
+          type:
+            - array
+            - "null"
+        movements:
+          description: Los 200 mas recientes.
+          items:
+            $ref: "#/components/schemas/InventoryMovement"
+          type:
+            - array
+            - "null"
+        requests:
+          description: Pendientes y las 100 mas recientes.
+          items:
+            $ref: "#/components/schemas/RestockRequest"
+          type:
+            - array
+            - "null"
+        stock:
+          items:
+            $ref: "#/components/schemas/StockRow"
+          type:
+            - array
+            - "null"
+        warehouses:
+          items:
+            $ref: "#/components/schemas/Warehouse"
+          type:
+            - array
+            - "null"
+      required:
+        - items
+        - warehouses
+        - stock
+        - movements
+        - custody
+        - discrepancies
+        - requests
+      type: object
     InvitationCreate:
       additionalProperties: true
       properties:
@@ -3687,6 +4050,49 @@ components:
         - hours
         - resolved
       type: object
+    MyInventory:
+      additionalProperties: false
+      properties:
+        custody:
+          items:
+            $ref: "#/components/schemas/CustodyItem"
+          type:
+            - array
+            - "null"
+        items:
+          description: Articulos activos para sacar o pedir.
+          items:
+            $ref: "#/components/schemas/InventoryItem"
+          type:
+            - array
+            - "null"
+        requests:
+          description: Sus 30 solicitudes mas recientes.
+          items:
+            $ref: "#/components/schemas/RestockRequest"
+          type:
+            - array
+            - "null"
+        stock:
+          items:
+            $ref: "#/components/schemas/StockRow"
+          type:
+            - array
+            - "null"
+        warehouses:
+          description: Bodegas activas de donde sacar.
+          items:
+            $ref: "#/components/schemas/Warehouse"
+          type:
+            - array
+            - "null"
+      required:
+        - custody
+        - items
+        - warehouses
+        - stock
+        - requests
+      type: object
     MyPayslip:
       additionalProperties: false
       properties:
@@ -4324,6 +4730,23 @@ components:
         items:
           items:
             $ref: "#/components/schemas/SyncResult"
+          type:
+            - array
+            - "null"
+        next_cursor:
+          type:
+            - string
+            - "null"
+      required:
+        - items
+        - next_cursor
+      type: object
+    PageTaskRead:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/TaskRead"
           type:
             - array
             - "null"
@@ -6345,6 +6768,109 @@ components:
         - token
         - new_password
       type: object
+    RestockLine:
+      additionalProperties: false
+      properties:
+        item_id:
+          format: uuid
+          type: string
+        quantity:
+          exclusiveMinimum: 0
+          format: double
+          type: number
+      required:
+        - item_id
+        - quantity
+      type: object
+    RestockRequest:
+      additionalProperties: false
+      properties:
+        at:
+          format: date-time
+          type: string
+        id:
+          format: uuid
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/RestockRequestItem"
+          type:
+            - array
+            - "null"
+        note:
+          type:
+            - string
+            - "null"
+        person_id:
+          format: uuid
+          type: string
+        person_name:
+          type: string
+        property_code:
+          type: string
+        property_id:
+          format: uuid
+          type:
+            - string
+            - "null"
+        status:
+          enum:
+            - pending
+            - approved
+            - rejected
+            - fulfilled
+          type: string
+      required:
+        - id
+        - status
+        - person_id
+        - person_name
+        - property_id
+        - property_code
+        - items
+        - at
+        - note
+      type: object
+    RestockRequestCreate:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/RestockLine"
+          maxItems: 50
+          minItems: 1
+          type:
+            - array
+            - "null"
+        note:
+          maxLength: 1000
+          type:
+            - string
+            - "null"
+        property_id:
+          format: uuid
+          type:
+            - string
+            - "null"
+      required:
+        - items
+      type: object
+    RestockRequestItem:
+      additionalProperties: false
+      properties:
+        item_id:
+          format: uuid
+          type: string
+        item_name:
+          type: string
+        qty:
+          format: double
+          type: number
+      required:
+        - item_id
+        - item_name
+        - qty
+      type: object
     RoleChange:
       additionalProperties: true
       properties:
@@ -6784,6 +7310,68 @@ components:
         - environment
         - database
       type: object
+    StockChange:
+      additionalProperties: false
+      properties:
+        item_id:
+          format: uuid
+          type: string
+        kind:
+          enum:
+            - entry
+            - adjustment
+            - transfer
+            - checkout
+            - return
+          type: string
+        note:
+          maxLength: 500
+          type:
+            - string
+            - "null"
+        qty:
+          description: Positiva; en ajustes puede ser negativa.
+          format: double
+          type: number
+        to_warehouse_id:
+          description: Destino de un traslado.
+          format: uuid
+          type:
+            - string
+            - "null"
+        user_id:
+          description: checkout/return de otra persona (requiere inventory.manage). Vacio = uno mismo.
+          format: uuid
+          type:
+            - string
+            - "null"
+        warehouse_id:
+          description: Origen (o destino en entradas, ajustes y devoluciones).
+          format: uuid
+          type: string
+      required:
+        - kind
+        - item_id
+        - warehouse_id
+        - qty
+      type: object
+    StockRow:
+      additionalProperties: false
+      properties:
+        item_id:
+          format: uuid
+          type: string
+        qty:
+          format: double
+          type: number
+        warehouse_id:
+          format: uuid
+          type: string
+      required:
+        - item_id
+        - warehouse_id
+        - qty
+      type: object
     SubscriptionRead:
       additionalProperties: false
       properties:
@@ -7012,6 +7600,817 @@ components:
       required:
         - secret
         - otpauth_url
+      type: object
+    TaskAssignee:
+      additionalProperties: false
+      properties:
+        id:
+          format: uuid
+          type: string
+        initials:
+          type: string
+        name:
+          type: string
+        property_ids:
+          description: Sus propiedades asignadas (vacio si no tiene alcance restringido).
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        role:
+          type: string
+        scoped:
+          description: Solo puede atender sus propiedades asignadas.
+          type: boolean
+      required:
+        - id
+        - name
+        - initials
+        - role
+        - scoped
+        - property_ids
+      type: object
+    TaskChecklistItem:
+      additionalProperties: false
+      properties:
+        done_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        id:
+          format: uuid
+          type: string
+        is_done:
+          type: boolean
+        notes:
+          type:
+            - string
+            - "null"
+        photos:
+          items:
+            $ref: "#/components/schemas/TaskPhoto"
+          type:
+            - array
+            - "null"
+        position:
+          format: int64
+          type: integer
+        requires_before_after:
+          type: boolean
+        requires_photo:
+          type: boolean
+        section:
+          type: string
+        text:
+          type: string
+      required:
+        - id
+        - section
+        - position
+        - text
+        - requires_photo
+        - requires_before_after
+        - is_done
+        - done_at
+        - notes
+        - photos
+      type: object
+    TaskChecklistSection:
+      additionalProperties: false
+      properties:
+        done:
+          format: int64
+          type: integer
+        name:
+          type: string
+        total:
+          format: int64
+          type: integer
+      required:
+        - name
+        - total
+        - done
+      type: object
+    TaskComplete:
+      additionalProperties: false
+      properties:
+        custody:
+          items:
+            $ref: "#/components/schemas/TaskCustodyReturn"
+          maxItems: 100
+          type:
+            - array
+            - "null"
+        lat:
+          format: double
+          maximum: 90
+          minimum: -90
+          type: number
+        lng:
+          format: double
+          maximum: 180
+          minimum: -180
+          type: number
+        notes:
+          maxLength: 2000
+          type:
+            - string
+            - "null"
+      required:
+        - lat
+        - lng
+      type: object
+    TaskConsumption:
+      additionalProperties: false
+      properties:
+        item:
+          type: string
+        item_id:
+          format: uuid
+          type: string
+        qty:
+          format: double
+          type: number
+        unit:
+          type: string
+      required:
+        - item_id
+        - item
+        - qty
+        - unit
+      type: object
+    TaskConsumptionLine:
+      additionalProperties: false
+      properties:
+        item_id:
+          format: uuid
+          type: string
+        quantity:
+          exclusiveMinimum: 0
+          format: double
+          type: number
+      required:
+        - item_id
+        - quantity
+      type: object
+    TaskConsumptions:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/TaskConsumptionLine"
+          maxItems: 50
+          minItems: 1
+          type:
+            - array
+            - "null"
+      required:
+        - items
+      type: object
+    TaskCreate:
+      additionalProperties: false
+      properties:
+        assignee_id:
+          format: uuid
+          type:
+            - string
+            - "null"
+        date:
+          format: date
+          type: string
+        end:
+          description: HH:MM
+          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+          type: string
+        notes:
+          maxLength: 2000
+          type:
+            - string
+            - "null"
+        priority:
+          default: normal
+          enum:
+            - normal
+            - high
+          type: string
+        property_id:
+          format: uuid
+          type: string
+        reservation_id:
+          format: uuid
+          type:
+            - string
+            - "null"
+        start:
+          description: HH:MM
+          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+          type: string
+        type:
+          enum:
+            - checkout_cleaning
+            - deep_cleaning
+            - touch_up
+            - inspection
+            - maintenance
+          type: string
+      required:
+        - type
+        - property_id
+        - date
+        - start
+        - end
+      type: object
+    TaskCustodyLine:
+      additionalProperties: false
+      properties:
+        category:
+          type: string
+        item_id:
+          format: uuid
+          type: string
+        name:
+          type: string
+        quantity:
+          format: double
+          type: number
+        returnable:
+          description: "Blancos y llaves: se devuelven completos."
+          type: boolean
+        unit:
+          type: string
+      required:
+        - item_id
+        - name
+        - unit
+        - category
+        - returnable
+        - quantity
+      type: object
+    TaskCustodyReturn:
+      additionalProperties: false
+      properties:
+        consumed:
+          description: Lo que gasto (solo consumibles).
+          format: double
+          minimum: 0
+          type: number
+        item_id:
+          format: uuid
+          type: string
+        kept:
+          description: Lo que se queda para su siguiente tarea.
+          format: double
+          minimum: 0
+          type: number
+        returned:
+          description: Lo que devuelve a la bodega.
+          format: double
+          minimum: 0
+          type: number
+      required:
+        - item_id
+        - returned
+        - consumed
+        - kept
+      type: object
+    TaskDecision:
+      additionalProperties: false
+      properties:
+        note:
+          maxLength: 1000
+          type:
+            - string
+            - "null"
+      type: object
+    TaskDetail:
+      additionalProperties: false
+      properties:
+        assignee_id:
+          format: uuid
+          type:
+            - string
+            - "null"
+        assignee_name:
+          type:
+            - string
+            - "null"
+        building_id:
+          format: uuid
+          type:
+            - string
+            - "null"
+        building_name:
+          type:
+            - string
+            - "null"
+        can_execute:
+          description: Quien consulta puede iniciarla y cerrarla.
+          type: boolean
+        can_manage:
+          description: Quien consulta puede reasignarla o validarla.
+          type: boolean
+        checklist:
+          items:
+            $ref: "#/components/schemas/TaskChecklistSection"
+          type:
+            - array
+            - "null"
+        completion_notes:
+          type:
+            - string
+            - "null"
+        consumption:
+          items:
+            $ref: "#/components/schemas/TaskConsumption"
+          type:
+            - array
+            - "null"
+        created_at:
+          format: date-time
+          type: string
+        custody:
+          description: La custodia de quien consulta, para la conciliacion del cierre.
+          items:
+            $ref: "#/components/schemas/TaskCustodyLine"
+          type:
+            - array
+            - "null"
+        date:
+          description: Dia local AAAA-MM-DD.
+          format: date
+          type: string
+        discrepancy:
+          description: Resumen de las diferencias de inventario abiertas.
+          type:
+            - string
+            - "null"
+        end:
+          description: HH:MM
+          type: string
+        evidence:
+          description: Fotos de la tarea que no son de un punto del checklist.
+          items:
+            $ref: "#/components/schemas/TaskPhoto"
+          type:
+            - array
+            - "null"
+        finished_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        id:
+          format: uuid
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/TaskChecklistItem"
+          type:
+            - array
+            - "null"
+        lat:
+          description: La de la propiedad o la de su edificio.
+          format: double
+          type:
+            - number
+            - "null"
+        late:
+          description: La marco el trabajo de retrasos.
+          type: boolean
+        lng:
+          format: double
+          type:
+            - number
+            - "null"
+        notes:
+          type:
+            - string
+            - "null"
+        number:
+          description: Folio corto de la empresa (#128).
+          format: int64
+          type: integer
+        photos:
+          format: int64
+          type: integer
+        priority:
+          enum:
+            - normal
+            - high
+          type: string
+        property_address:
+          type:
+            - string
+            - "null"
+        property_code:
+          type: string
+        property_id:
+          format: uuid
+          type: string
+        property_name:
+          type: string
+        reservation_code:
+          type:
+            - string
+            - "null"
+        reservation_id:
+          format: uuid
+          type:
+            - string
+            - "null"
+        start:
+          description: HH:MM
+          type: string
+        started_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        status:
+          enum:
+            - pending
+            - in_progress
+            - done
+            - validated
+            - returned
+            - cancelled
+          type: string
+        ticket_id:
+          format: uuid
+          type:
+            - string
+            - "null"
+        timeline:
+          items:
+            $ref: "#/components/schemas/TaskTimelineEvent"
+          type:
+            - array
+            - "null"
+        type:
+          enum:
+            - checkout_cleaning
+            - deep_cleaning
+            - touch_up
+            - inspection
+            - maintenance
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+        validated_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+      required:
+        - items
+        - evidence
+        - custody
+        - can_execute
+        - can_manage
+        - id
+        - number
+        - type
+        - status
+        - priority
+        - property_id
+        - property_code
+        - property_name
+        - property_address
+        - lat
+        - lng
+        - building_id
+        - building_name
+        - assignee_id
+        - assignee_name
+        - date
+        - start
+        - end
+        - late
+        - checklist
+        - photos
+        - started_at
+        - finished_at
+        - validated_at
+        - reservation_id
+        - reservation_code
+        - ticket_id
+        - notes
+        - completion_notes
+        - consumption
+        - discrepancy
+        - timeline
+        - created_at
+        - updated_at
+      type: object
+    TaskGenerate:
+      additionalProperties: false
+      properties:
+        from:
+          format: date
+          type: string
+        to:
+          format: date
+          type: string
+      required:
+        - from
+        - to
+      type: object
+    TaskGenerated:
+      additionalProperties: false
+      properties:
+        created:
+          format: int64
+          type: integer
+      required:
+        - created
+      type: object
+    TaskItemUpdate:
+      additionalProperties: false
+      properties:
+        is_done:
+          type: boolean
+        notes:
+          maxLength: 1000
+          type:
+            - string
+            - "null"
+      type: object
+    TaskPhoto:
+      additionalProperties: false
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        file_id:
+          format: uuid
+          type: string
+        kind:
+          enum:
+            - before
+            - after
+            - evidence
+          type: string
+      required:
+        - file_id
+        - kind
+        - created_at
+      type: object
+    TaskRead:
+      additionalProperties: false
+      properties:
+        assignee_id:
+          format: uuid
+          type:
+            - string
+            - "null"
+        assignee_name:
+          type:
+            - string
+            - "null"
+        building_id:
+          format: uuid
+          type:
+            - string
+            - "null"
+        building_name:
+          type:
+            - string
+            - "null"
+        checklist:
+          items:
+            $ref: "#/components/schemas/TaskChecklistSection"
+          type:
+            - array
+            - "null"
+        completion_notes:
+          type:
+            - string
+            - "null"
+        consumption:
+          items:
+            $ref: "#/components/schemas/TaskConsumption"
+          type:
+            - array
+            - "null"
+        created_at:
+          format: date-time
+          type: string
+        date:
+          description: Dia local AAAA-MM-DD.
+          format: date
+          type: string
+        discrepancy:
+          description: Resumen de las diferencias de inventario abiertas.
+          type:
+            - string
+            - "null"
+        end:
+          description: HH:MM
+          type: string
+        finished_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        id:
+          format: uuid
+          type: string
+        lat:
+          description: La de la propiedad o la de su edificio.
+          format: double
+          type:
+            - number
+            - "null"
+        late:
+          description: La marco el trabajo de retrasos.
+          type: boolean
+        lng:
+          format: double
+          type:
+            - number
+            - "null"
+        notes:
+          type:
+            - string
+            - "null"
+        number:
+          description: Folio corto de la empresa (#128).
+          format: int64
+          type: integer
+        photos:
+          format: int64
+          type: integer
+        priority:
+          enum:
+            - normal
+            - high
+          type: string
+        property_address:
+          type:
+            - string
+            - "null"
+        property_code:
+          type: string
+        property_id:
+          format: uuid
+          type: string
+        property_name:
+          type: string
+        reservation_code:
+          type:
+            - string
+            - "null"
+        reservation_id:
+          format: uuid
+          type:
+            - string
+            - "null"
+        start:
+          description: HH:MM
+          type: string
+        started_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        status:
+          enum:
+            - pending
+            - in_progress
+            - done
+            - validated
+            - returned
+            - cancelled
+          type: string
+        ticket_id:
+          format: uuid
+          type:
+            - string
+            - "null"
+        timeline:
+          items:
+            $ref: "#/components/schemas/TaskTimelineEvent"
+          type:
+            - array
+            - "null"
+        type:
+          enum:
+            - checkout_cleaning
+            - deep_cleaning
+            - touch_up
+            - inspection
+            - maintenance
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+        validated_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+      required:
+        - id
+        - number
+        - type
+        - status
+        - priority
+        - property_id
+        - property_code
+        - property_name
+        - property_address
+        - lat
+        - lng
+        - building_id
+        - building_name
+        - assignee_id
+        - assignee_name
+        - date
+        - start
+        - end
+        - late
+        - checklist
+        - photos
+        - started_at
+        - finished_at
+        - validated_at
+        - reservation_id
+        - reservation_code
+        - ticket_id
+        - notes
+        - completion_notes
+        - consumption
+        - discrepancy
+        - timeline
+        - created_at
+        - updated_at
+      type: object
+    TaskReschedule:
+      additionalProperties: false
+      properties:
+        assignee_id:
+          description: null la deja sin asignar.
+          format: uuid
+          type:
+            - string
+            - "null"
+        date:
+          format: date
+          type: string
+        end:
+          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+          type: string
+        reason:
+          maxLength: 500
+          type: string
+        start:
+          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+          type: string
+      required:
+        - reason
+      type: object
+    TaskStart:
+      additionalProperties: false
+      properties:
+        lat:
+          format: double
+          maximum: 90
+          minimum: -90
+          type: number
+        lng:
+          format: double
+          maximum: 180
+          minimum: -180
+          type: number
+      required:
+        - lat
+        - lng
+      type: object
+    TaskTimelineEvent:
+      additionalProperties: false
+      properties:
+        actor:
+          description: Nombre de quien lo hizo; "Sistema" si fue un trabajo.
+          type: string
+        at:
+          format: date-time
+          type: string
+        detail:
+          type:
+            - string
+            - "null"
+        text:
+          type: string
+        type:
+          type: string
+      required:
+        - at
+        - type
+        - text
+        - actor
       type: object
     Tasks:
       additionalProperties: false
@@ -8087,6 +9486,58 @@ components:
           type:
             - string
             - "null"
+      type: object
+    Warehouse:
+      additionalProperties: false
+      properties:
+        id:
+          format: uuid
+          type: string
+        is_active:
+          type: boolean
+        name:
+          type: string
+        property_code:
+          type:
+            - string
+            - "null"
+        property_id:
+          description: Vacio = bodega central.
+          format: uuid
+          type:
+            - string
+            - "null"
+      required:
+        - id
+        - name
+        - property_id
+        - property_code
+        - is_active
+      type: object
+    WarehouseCreate:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 128
+          minLength: 1
+          type: string
+        property_id:
+          format: uuid
+          type:
+            - string
+            - "null"
+      required:
+        - name
+      type: object
+    WarehouseUpdate:
+      additionalProperties: false
+      properties:
+        is_active:
+          type: boolean
+        name:
+          maxLength: 128
+          minLength: 1
+          type: string
       type: object
   securitySchemes:
     apiKey:
@@ -11223,6 +12674,464 @@ paths:
       summary: Quitar un hallazgo
       tags:
         - reservas
+  /api/v1/inventory/custody/{person_id}/return:
+    post:
+      description: Sin qty devuelve todo; sin warehouse_id va a la bodega central.
+      operationId: return-custody
+      parameters:
+        - in: path
+          name: person_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustodyReturn"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Recibir la devolucion de una custodia
+      tags:
+        - inventario
+  /api/v1/inventory/discrepancies/{discrepancy_id}:
+    patch:
+      description: "status: open, justified o closed."
+      operationId: update-inventory-discrepancy
+      parameters:
+        - in: path
+          name: discrepancy_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InventoryDecision"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Justificar o cerrar una diferencia
+      tags:
+        - inventario
+  /api/v1/inventory/items:
+    get:
+      operationId: list-inventory-items
+      parameters:
+        - explode: false
+          in: query
+          name: active
+          schema:
+            enum:
+              - "true"
+              - "false"
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/InventoryItem"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Articulos
+      tags:
+        - inventario
+    post:
+      operationId: create-inventory-item
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InventoryItemCreate"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryItem"
+          description: Created
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Dar de alta un articulo
+      tags:
+        - inventario
+  /api/v1/inventory/items/{item_id}:
+    patch:
+      operationId: update-inventory-item
+      parameters:
+        - in: path
+          name: item_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InventoryItemUpdate"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryItem"
+          description: OK
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Editar el articulo
+      tags:
+        - inventario
+  /api/v1/inventory/me:
+    get:
+      description: Custodia propia, articulos y existencias para sacar, y mis solicitudes (app).
+      operationId: inventory-mine
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyInventory"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Mi inventario
+      tags:
+        - inventario
+  /api/v1/inventory/movements:
+    post:
+      description: entry, adjustment (con nota) y transfer requieren inventory.manage; checkout y return mueven a la custodia propia con inventory.checkout. Nunca deja existencia negativa.
+      operationId: create-inventory-movement
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StockChange"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Forbidden
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Registrar un movimiento
+      tags:
+        - inventario
+  /api/v1/inventory/overview:
+    get:
+      description: Articulos, bodegas, existencias, movimientos recientes, custodias, diferencias y solicitudes (web). Sin inventory.reconcile, custodia y diferencias son solo las propias.
+      operationId: inventory-overview
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventorySnapshot"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Inventario completo
+      tags:
+        - inventario
+  /api/v1/inventory/restock-requests:
+    post:
+      operationId: create-restock-request
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RestockRequestCreate"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestockRequest"
+          description: Created
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Pedir reposicion
+      tags:
+        - inventario
+  /api/v1/inventory/restock-requests/{request_id}:
+    patch:
+      description: "status: approved, rejected o fulfilled."
+      operationId: update-restock-request
+      parameters:
+        - in: path
+          name: request_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InventoryDecision"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Resolver una solicitud
+      tags:
+        - inventario
+  /api/v1/inventory/warehouses:
+    get:
+      operationId: list-warehouses
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/Warehouse"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Bodegas
+      tags:
+        - inventario
+    post:
+      description: Sin property_id es central; con property_id es la bodega de esa propiedad (una por propiedad).
+      operationId: create-warehouse
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WarehouseCreate"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Warehouse"
+          description: Created
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Crear una bodega
+      tags:
+        - inventario
+  /api/v1/inventory/warehouses/{warehouse_id}:
+    patch:
+      operationId: update-warehouse
+      parameters:
+        - in: path
+          name: warehouse_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WarehouseUpdate"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Warehouse"
+          description: OK
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Editar la bodega
+      tags:
+        - inventario
   /api/v1/maintenance/assignables:
     get:
       description: Miembros activos con maintenance.execute, los menos cargados primero.
@@ -13947,6 +15856,637 @@ paths:
       summary: Datos para trabajar sin conexion
       tags:
         - sync
+  /api/v1/tasks:
+    get:
+      description: Del alcance (sus propiedades o asignadas a quien consulta), por dia y hora. Cada una trae su avance de checklist, insumos y linea de tiempo.
+      operationId: list-tasks
+      parameters:
+        - description: Un solo dia (atajo de from=to).
+          explode: false
+          in: query
+          name: date
+          schema:
+            description: Un solo dia (atajo de from=to).
+            format: date
+            type: string
+        - explode: false
+          in: query
+          name: from
+          schema:
+            format: date
+            type: string
+        - description: Incluido. Maximo 92 dias.
+          explode: false
+          in: query
+          name: to
+          schema:
+            description: Incluido. Maximo 92 dias.
+            format: date
+            type: string
+        - explode: false
+          in: query
+          name: property_id
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: assignee_id
+          schema:
+            format: uuid
+            type: string
+        - description: Uno o varios separados por coma. Sin filtro no trae canceladas.
+          explode: false
+          in: query
+          name: status
+          schema:
+            description: Uno o varios separados por coma. Sin filtro no trae canceladas.
+            type: string
+        - description: Solo las asignadas a quien consulta (app).
+          explode: false
+          in: query
+          name: mine
+          schema:
+            description: Solo las asignadas a quien consulta (app).
+            type: boolean
+        - description: Sincronizacion incremental de la app (incluye canceladas).
+          explode: false
+          in: query
+          name: updated_since
+          schema:
+            description: Sincronizacion incremental de la app (incluye canceladas).
+            format: date-time
+            type: string
+        - explode: false
+          in: query
+          name: cursor
+          schema:
+            maxLength: 512
+            type: string
+        - description: Por defecto 50.
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Por defecto 50.
+            format: int64
+            maximum: 500
+            minimum: 0
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageTaskRead"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Tareas
+      tags:
+        - tareas
+    post:
+      description: Las limpiezas y las inspecciones copian el checklist de la propiedad (o el de por defecto).
+      operationId: create-task
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskCreate"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskRead"
+          description: Created
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Programar una tarea
+      tags:
+        - tareas
+  /api/v1/tasks/assignables:
+    get:
+      description: Con tasks.execute; property_ids son sus propiedades si su rol es de alcance restringido.
+      operationId: list-task-assignables
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/TaskAssignee"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Personas que atienden tareas
+      tags:
+        - tareas
+  /api/v1/tasks/generate-from-reservations:
+    post:
+      description: Para las reservas vivas que salen en el rango y aun no tienen una.
+      operationId: generate-tasks-from-reservations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskGenerate"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskGenerated"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Crear limpiezas de salida
+      tags:
+        - tareas
+  /api/v1/tasks/{task_id}:
+    get:
+      description: Con su checklist (fotos por punto), evidencias y la custodia de quien consulta para el cierre.
+      operationId: get-task
+      parameters:
+        - in: path
+          name: task_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskDetail"
+          description: OK
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Detalle de la tarea
+      tags:
+        - tareas
+  /api/v1/tasks/{task_id}/cancel:
+    post:
+      operationId: cancel-task
+      parameters:
+        - in: path
+          name: task_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskDecision"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskRead"
+          description: OK
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Cancelar
+      tags:
+        - tareas
+  /api/v1/tasks/{task_id}/checklist/{item_id}:
+    patch:
+      description: Las fotos se suben con module tasks, kind before/after/evidence, entity_type task_checklist_item y entity_id el punto.
+      operationId: update-task-checklist-item
+      parameters:
+        - in: path
+          name: task_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - in: path
+          name: item_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskItemUpdate"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskChecklistItem"
+          description: OK
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Marcar un punto del checklist
+      tags:
+        - tareas
+  /api/v1/tasks/{task_id}/complete:
+    post:
+      description: "Exige checklist completo, fotos obligatorias, GPS y la conciliacion de toda la custodia: devuelto + usado + se queda = custodia. Cada diferencia abre una discrepancia."
+      operationId: complete-task
+      parameters:
+        - in: path
+          name: task_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskComplete"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskDetail"
+          description: OK
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Cerrar (prueba de salida)
+      tags:
+        - tareas
+  /api/v1/tasks/{task_id}/consumptions:
+    post:
+      description: Salen de la custodia propia (solo consumibles).
+      operationId: add-task-consumptions
+      parameters:
+        - in: path
+          name: task_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskConsumptions"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskRead"
+          description: OK
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Registrar insumos usados
+      tags:
+        - tareas
+  /api/v1/tasks/{task_id}/reschedule:
+    post:
+      description: Con motivo. assignee_id null la deja sin asignar.
+      operationId: reschedule-task
+      parameters:
+        - in: path
+          name: task_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskReschedule"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskRead"
+          description: OK
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Reprogramar o reasignar
+      tags:
+        - tareas
+  /api/v1/tasks/{task_id}/return:
+    post:
+      description: done o validated → returned; la nota (motivo) es obligatoria.
+      operationId: return-task
+      parameters:
+        - in: path
+          name: task_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskDecision"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskRead"
+          description: OK
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Devolver para corregir
+      tags:
+        - tareas
+  /api/v1/tasks/{task_id}/start:
+    post:
+      description: Requiere GPS. Solo el asignado (o quien asigna); sin asignado, la toma quien la inicia.
+      operationId: start-task
+      parameters:
+        - in: path
+          name: task_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskStart"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskDetail"
+          description: OK
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Iniciar
+      tags:
+        - tareas
+  /api/v1/tasks/{task_id}/validate:
+    post:
+      description: done → validated, con nota opcional.
+      operationId: validate-task
+      parameters:
+        - in: path
+          name: task_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskDecision"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskRead"
+          description: OK
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Not Found
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Validar
+      tags:
+        - tareas
   /api/v1/tenants/{tenant_id}/invitations:
     get:
       description: "`status=pending` excluye las vencidas."

@@ -22,6 +22,7 @@ import (
 	"github.com/smorareqs/argos-service/internal/modules/authz"
 	"github.com/smorareqs/argos-service/internal/modules/checklists"
 	"github.com/smorareqs/argos-service/internal/modules/employees"
+	"github.com/smorareqs/argos-service/internal/modules/inventory"
 	"github.com/smorareqs/argos-service/internal/modules/maintenance"
 	"github.com/smorareqs/argos-service/internal/modules/properties"
 )
@@ -38,6 +39,8 @@ type Bootstrap struct {
 	ChecklistTemplates []checklists.TemplateRead `json:"checklist_templates"`
 	Schedule           []employees.ScheduleBlock `json:"schedule" doc:"Horario semanal propio (vacio si no tiene ficha laboral)."`
 	Assets             []maintenance.AssetRef    `json:"assets" doc:"Activos del alcance para reportar incidencias (fase 3; requiere maintenance.report o maintenance.read)."`
+	// InventoryItems son los articulos activos (Persona B; requiere inventory.read).
+	InventoryItems []inventory.InventoryItem `json:"inventory_items" doc:"Articulos activos del inventario (requiere inventory.read)."`
 }
 
 // Service arma el bootstrap.
@@ -60,7 +63,7 @@ func (s *Service) Bootstrap(ctx context.Context, actor authz.Actor) (Bootstrap, 
 		ServerTime: s.now().UTC(), Scoped: actor.Scoped,
 		Properties: []properties.PropertyRead{}, Buildings: []properties.BuildingRead{},
 		ChecklistTemplates: []checklists.TemplateRead{}, Schedule: []employees.ScheduleBlock{},
-		Assets: []maintenance.AssetRef{},
+		Assets: []maintenance.AssetRef{}, InventoryItems: []inventory.InventoryItem{},
 	}
 	if actor.Permissions[authz.PropertiesRead] {
 		if err := s.catalog(ctx, actor, &out); err != nil {
@@ -73,6 +76,11 @@ func (s *Service) Bootstrap(ctx context.Context, actor authz.Actor) (Bootstrap, 
 			return err
 		}
 		out.Schedule = schedule
+		if actor.Permissions[authz.InventoryRead] {
+			if out.InventoryItems, err = inventory.ActiveItems(ctx, q); err != nil {
+				return err
+			}
+		}
 		if !actor.Permissions[authz.MaintenanceReport] && !actor.Permissions[authz.MaintenanceRead] {
 			return nil
 		}

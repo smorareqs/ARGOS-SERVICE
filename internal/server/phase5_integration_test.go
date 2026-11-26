@@ -113,8 +113,8 @@ func TestPayrollCycle(t *testing.T) {
 	res = o.do(http.MethodPost, base+"/compute", o.admin, nil)
 	expect(t, res, http.StatusOK)
 	src := res.body["sources"].(map[string]any)
-	if src["attendance"] != false || src["tasks"] != false {
-		t.Fatalf("sin tablas de B el calculo usa el horario: %v", src)
+	if src["attendance"] != false || src["tasks"] != true {
+		t.Fatalf("sin asistencia el calculo usa el horario; las tareas ya existen (Persona B): %v", src)
 	}
 	// Salario fijo: 7800 / 2; IGSS 4.83 % de la base; bonificacion incentivo 125.
 	j := entryOf(res.body, jorge)
